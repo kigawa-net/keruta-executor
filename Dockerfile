@@ -3,17 +3,17 @@ FROM gradle:jdk21 AS builder
 WORKDIR /app
 
 # Copy gradle files first for better layer caching
-COPY ../gradlew .
-COPY ../gradle gradle
-COPY ../build.gradle.kts .
-COPY ../settings.gradle.kts .
-COPY ../buildSrc buildSrc
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle.kts .
+COPY settings.gradle.kts .
+COPY buildSrc buildSrc
 
 # Download dependencies
 RUN gradle dependencies --no-daemon
 
 # Copy source code
-COPY ../keruta-executor keruta-executor
+COPY ./ keruta-executor
 
 # Build the application
 RUN gradle :keruta-executor:bootJar --no-daemon
