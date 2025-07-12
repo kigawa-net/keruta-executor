@@ -39,17 +39,28 @@ keruta.executor.coder.timeout=1800000
 
 ## ビルドと実行
 
-### ビルド
+### 方法1: Gradleで実行
+
+#### ビルド
 
 ```bash
 ./gradlew build
 ```
 
-### 実行
+#### 実行
 
 ```bash
 ./gradlew bootRun
 ```
+
+### 方法2: Dockerで実行
+
+```bash
+# アプリケーションとMongoDBの起動
+docker-compose up -d
+```
+
+アプリケーションは http://localhost:8081 で起動します。
 
 ## 開発
 
