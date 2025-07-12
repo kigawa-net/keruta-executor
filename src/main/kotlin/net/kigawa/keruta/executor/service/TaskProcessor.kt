@@ -23,7 +23,7 @@ class TaskProcessor(
      * Scheduled method that processes the next task in the queue.
      * It ensures that only one task is processed at a time.
      */
-    @Scheduled(fixedDelayString = "#{@kerutaExecutorProperties.processingDelay.toMillis()}")
+    @Scheduled(fixedDelayString = "#{@processingDelayMillis}")
     fun processNextTask() {
         // If already processing a task, skip this run
         if (!isProcessing.compareAndSet(false, true)) {

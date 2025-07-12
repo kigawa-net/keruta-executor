@@ -28,7 +28,7 @@ class CoderExecutionService(
      */
     fun executeTask(task: Task): Boolean {
         logger.info("Executing task ${task.id} with coder")
-        
+
         // Create working directory
         val workDir = createWorkingDirectory(task)
         if (workDir == null) {
@@ -39,56 +39,55 @@ class CoderExecutionService(
             )
             return false
         }
-        
+
         // Prepare environment variables
         val env = prepareEnvironment(task)
-        
+
         // Build command
         val command = buildCommand(task)
-        
+
         return try {
             // Execute command
-            val process = ProcessBuilder(command)
+            val processBuilder = ProcessBuilder(command)
                 .directory(workDir)
                 .redirectErrorStream(true)
-                .environment().putAll(env)
-                .parent()
-                .start()
-            
+            processBuilder.environment().putAll(env)
+            val process = processBuilder.start()
+
             // Update task status to IN_PROGRESS
             taskApiService.updateTaskStatus(
                 task.id,
                 net.kigawa.keruta.executor.domain.model.TaskStatus.IN_PROGRESS,
                 "Task execution started"
             )
-            
+
             // Read output
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val logBuilder = StringBuilder()
             var line: String?
-            
+
             while (reader.readLine().also { line = it } != null) {
                 logger.debug("Coder output: $line")
                 logBuilder.appendLine(line)
-                
+
                 // Periodically append logs to the task
                 if (logBuilder.length > 1000) {
                     taskApiService.appendTaskLogs(task.id, logBuilder.toString())
                     logBuilder.clear()
                 }
             }
-            
+
             // Append any remaining logs
             if (logBuilder.isNotEmpty()) {
                 taskApiService.appendTaskLogs(task.id, logBuilder.toString())
             }
-            
+
             // Wait for process to complete with timeout
             val completed = process.waitFor(
                 properties.coder.timeout.toMillis(),
                 TimeUnit.MILLISECONDS
             )
-            
+
             if (!completed) {
                 logger.warn("Coder execution timed out for task ${task.id}")
                 process.destroyForcibly()
@@ -99,7 +98,7 @@ class CoderExecutionService(
                 )
                 return false
             }
-            
+
             // Check exit code
             val exitCode = process.exitValue()
             if (exitCode == 0) {
@@ -132,7 +131,7 @@ class CoderExecutionService(
             cleanupWorkingDirectory(workDir)
         }
     }
-    
+
     /**
      * Creates a working directory for the task.
      * @param task the task to create a working directory for
@@ -141,7 +140,7 @@ class CoderExecutionService(
     private fun createWorkingDirectory(task: Task): File? {
         val baseDir = Paths.get(properties.coder.workingDir)
         val taskDir = baseDir.resolve(task.id)
-        
+
         return try {
             Files.createDirectories(taskDir)
             taskDir.toFile()
@@ -150,7 +149,7 @@ class CoderExecutionService(
             null
         }
     }
-    
+
     /**
      * Prepares environment variables for the task.
      * @param task the task to prepare environment variables for
@@ -158,21 +157,21 @@ class CoderExecutionService(
      */
     private fun prepareEnvironment(task: Task): Map<String, String> {
         val env = mutableMapOf<String, String>()
-        
+
         // Add task information as environment variables
         env["TASK_ID"] = task.id
         env["TASK_TITLE"] = task.title
         task.description?.let { env["TASK_DESCRIPTION"] = it }
-        
+
         // Add additional environment variables from task
         env.putAll(task.additionalEnv)
-        
+
         // Add additional environment variables from configuration
         env.putAll(properties.coder.additionalEnv)
-        
+
         return env
     }
-    
+
     /**
      * Builds the command to execute coder.
      * @param task the task to build the command for
@@ -181,13 +180,13 @@ class CoderExecutionService(
     private fun buildCommand(task: Task): List<String> {
         // Split the command into a list of arguments
         val command = properties.coder.command.split("\\s+".toRegex())
-        
+
         // Add task-specific arguments if needed
         // This is just a placeholder - modify as needed based on how coder should be invoked
-        
+
         return command
     }
-    
+
     /**
      * Cleans up the working directory for the task.
      * @param workDir the working directory to clean up
