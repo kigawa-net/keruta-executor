@@ -14,7 +14,7 @@ RUN gradle dependencies --no-daemon
 COPY ./ keruta-executor
 
 # Build the application
-RUN gradle :keruta-executor:bootJar --no-daemon
+RUN gradle :bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
