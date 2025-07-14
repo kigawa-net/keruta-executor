@@ -11,11 +11,10 @@ COPY settings.gradle.kts .
 # Download dependencies
 RUN gradle dependencies --no-daemon
 
-# Copy source code
-COPY ./ keruta-executor
 
+COPY src src
 # Build the application
-RUN gradle :bootJar --no-daemon
+RUN gradle bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
