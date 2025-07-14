@@ -8,8 +8,11 @@ import net.kigawa.keruta.executor.domain.model.TaskStatusUpdate
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.bodyToMono
 import reactor.core.publisher.Mono
+import reactor.util.retry.Retry
+import java.time.Duration
 
 /**
  * Service for interacting with the keruta-api task endpoints.
@@ -52,7 +55,7 @@ class TaskApiService(
      * @return the updated task, or null if the update failed
      */
     fun updateTaskStatus(taskId: String, status: TaskStatus, message: String? = null): Task? {
-        logger.debug("Updating task $taskId status to $status")
+        logger.debug("Updating task {} status to {}", taskId, status)
         return try {
             webClient.put()
                 .uri("/api/v1/tasks/$taskId/status")
@@ -82,9 +85,16 @@ class TaskApiService(
                 .retrieve()
                 .bodyToMono<Void>()
                 .then(Mono.just(true))
+                .retryWhen(
+                    Retry.backoff(3, Duration.ofSeconds(1))
+                        .maxBackoff(Duration.ofSeconds(5))
+                        .filter { it is WebClientResponseException && it.statusCode.is5xxServerError }
+                        .doBeforeRetry { logger.warn("Retrying log append for task $taskId after server error: ${it.failure().message}") }
+                )
                 .block() ?: false
         } catch (e: Exception) {
             logger.error("Error appending logs to task $taskId", e)
+            // Log continues execution even if log appending fails
             false
         }
     }
