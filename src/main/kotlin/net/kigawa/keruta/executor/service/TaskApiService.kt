@@ -80,7 +80,7 @@ class TaskApiService(
         logger.debug("Appending logs to task $taskId")
         return try {
             webClient.post()
-                .uri("/api/v1/tasks/$taskId/logs")
+                .uri("/api/v1/tasks/$taskId/logs/stream")
                 .bodyValue(logs)
                 .retrieve()
                 .bodyToMono<Void>()
