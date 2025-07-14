@@ -43,11 +43,21 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     }
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+// Configure Gradle to automatically download the required JDK
+plugins.withType<JavaPlugin> {
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
     }
 }
+
+// Configure toolchain repositories to download Java 17 automatically
+repositories {
+    mavenCentral()
+}
+
+// Enable auto-provisioning of JDKs with the Foojay Toolchains Plugin
 
 tasks.withType<Test> {
     useJUnitPlatform()
