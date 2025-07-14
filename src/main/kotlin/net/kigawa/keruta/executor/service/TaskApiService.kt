@@ -2,6 +2,7 @@ package net.kigawa.keruta.executor.service
 
 import net.kigawa.keruta.executor.config.KerutaExecutorProperties
 import net.kigawa.keruta.executor.domain.model.Task
+import net.kigawa.keruta.executor.domain.model.TaskScript
 import net.kigawa.keruta.executor.domain.model.TaskStatus
 import net.kigawa.keruta.executor.domain.model.TaskStatusUpdate
 import org.slf4j.LoggerFactory
@@ -85,6 +86,52 @@ class TaskApiService(
         } catch (e: Exception) {
             logger.error("Error appending logs to task $taskId", e)
             false
+        }
+    }
+
+    /**
+     * Gets the script for a task from the keruta-api.
+     * @param taskId the ID of the task to get the script for
+     * @return the task script, or null if the script could not be retrieved
+     */
+    fun getTaskScript(taskId: String): TaskScript? {
+        logger.debug("Getting script for task $taskId")
+        return try {
+            // The API returns a different structure than our TaskScript model
+            // We need to map the response to our model
+            val response = webClient.get()
+                .uri("/api/v1/tasks/$taskId/script")
+                .retrieve()
+                .bodyToMono<Map<String, Any>>()
+                .block()
+
+            if (response != null) {
+                logger.info("Got script for task $taskId")
+
+                // Extract script content from the response
+                @Suppress("UNCHECKED_CAST")
+                val scriptContent = response["script"] as? Map<String, String>
+
+                if (scriptContent != null) {
+                    // Create a TaskScript from the response
+                    TaskScript(
+                        taskId = taskId,
+                        installScript = scriptContent["installScript"] ?: "",
+                        executeScript = scriptContent["executeScript"] ?: "",
+                        cleanupScript = scriptContent["cleanupScript"] ?: "",
+                        environment = response["environment"] as? Map<String, String> ?: emptyMap()
+                    )
+                } else {
+                    logger.error("Invalid script content format for task $taskId")
+                    null
+                }
+            } else {
+                logger.error("No response received for task script $taskId")
+                null
+            }
+        } catch (e: Exception) {
+            logger.error("Error getting script for task $taskId", e)
+            null
         }
     }
 }
