@@ -129,7 +129,7 @@ class TaskApiService(
                         installScript = scriptContent["installScript"] ?: "",
                         executeScript = scriptContent["executeScript"] ?: "",
                         cleanupScript = scriptContent["cleanupScript"] ?: "",
-                        environment = response["environment"] as? Map<String, String> ?: emptyMap()
+                        environment = parseEnvironmentMap(response["environment"]) ?: emptyMap()
                     )
                 } else {
                     logger.error("Invalid script content format for task $taskId")
@@ -143,5 +143,29 @@ class TaskApiService(
             logger.error("Error getting script for task $taskId", e)
             null
         }
+    }
+
+    /**
+     * Safely parses an environment map from Any? to Map<String, String>.
+     * @param obj the object to parse
+     * @return a Map<String, String> if the object can be safely converted, null otherwise
+     */
+    private fun parseEnvironmentMap(obj: Any?): Map<String, String>? {
+        if (obj !is Map<*, *>) {
+            return null
+        }
+
+        val result = mutableMapOf<String, String>()
+        for ((key, value) in obj) {
+            if (key is String && value is String) {
+                result[key] = value
+            } else {
+                // If any key-value pair doesn't match the expected types, return null
+                logger.warn("Environment map contains non-string key or value: $key -> $value")
+                return null
+            }
+        }
+
+        return result
     }
 }
