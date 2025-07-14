@@ -21,7 +21,7 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Copy the built jar file from the builder stage
-COPY --from=builder /app/keruta-executor/build/libs/*.jar app.jar
+COPY --from=builder /app/build/libs/*.jar app.jar
 
 # Set environment variables
 ENV SPRING_PROFILES_ACTIVE=prod
