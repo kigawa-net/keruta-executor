@@ -10,31 +10,31 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
- * Service for executing tasks using SSH.
+ * Service for executing tasks locally.
  */
 @Service
 class CoderExecutionService(
     private val properties: KerutaExecutorProperties,
     private val taskApiService: TaskApiService,
-    private val sshService: SshService,
+    private val localExecutionService: LocalExecutionService,
 ) {
     private val logger = LoggerFactory.getLogger(CoderExecutionService::class.java)
 
     /**
-     * Executes a task using SSH.
+     * Executes a task locally.
      * @param task the task to execute
      * @return true if the task was executed successfully, false otherwise
      */
     fun executeTask(task: Task): Boolean {
-        logger.info("Executing task ${task.id} via SSH")
+        logger.info("Executing task ${task.id} locally")
 
         try {
             // Update task status to IN_PROGRESS
-            val updatedTask = taskApiService.updateTaskStatus(
+            if (taskApiService.updateTaskStatus(
                 task.id,
                 TaskStatus.IN_PROGRESS,
-                "Task execution started via SSH"
-            ) ?: return false
+                "Task execution started"
+            ) == null) return false
 
             // Get the task script
             val script = taskApiService.getTaskScript(task.id)
@@ -50,8 +50,8 @@ class CoderExecutionService(
 
             logger.info("Successfully retrieved script for task ${task.id}")
 
-            // Log that we're using SSH
-            val logMessage = "Task is being executed via SSH"
+            // Log that we're executing the task
+            val logMessage = "Task is being executed locally"
             taskApiService.appendTaskLogs(task.id, logMessage)
 
             // Create temporary script files
@@ -88,14 +88,14 @@ class CoderExecutionService(
             taskApiService.updateTaskStatus(
                 task.id,
                 TaskStatus.COMPLETED,
-                "Task execution completed successfully via SSH"
+                "Task execution completed successfully"
             )
 
-            logger.info("Task ${task.id} executed successfully via SSH")
+            logger.info("Task ${task.id} executed successfully")
             return true
 
         } catch (e: Exception) {
-            logger.error("Error executing task ${task.id} via SSH", e)
+            logger.error("Error executing task ${task.id}", e)
             taskApiService.updateTaskStatus(
                 task.id,
                 TaskStatus.FAILED,
@@ -124,7 +124,7 @@ class CoderExecutionService(
     }
 
     /**
-     * Executes a script via SSH.
+     * Executes a script locally.
      * @param taskId the ID of the task
      * @param scriptType the type of script (install, execute, cleanup)
      * @param scriptContent the content of the script
@@ -140,8 +140,8 @@ class CoderExecutionService(
         logger.debug("Executing $scriptType script for task $taskId")
 
         try {
-            // Execute the script via SSH
-            return sshService.executeCommand(scriptContent, environment)
+            // Execute the script locally
+            return localExecutionService.executeCommand(scriptContent, environment)
         } catch (e: Exception) {
             logger.error("Error executing $scriptType script for task $taskId", e)
             throw e
