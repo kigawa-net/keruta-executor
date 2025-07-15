@@ -23,11 +23,6 @@ data class KerutaExecutorProperties @ConstructorBinding constructor(
      * Configuration for the coder integration.
      */
     val coder: CoderProperties,
-
-    /**
-     * Configuration for SSH connection.
-     */
-    val ssh: SshProperties = SshProperties(),
 )
 
 /**
@@ -55,48 +50,3 @@ data class CoderProperties(
     val additionalEnv: Map<String, String> = emptyMap(),
     )
 
-    /**
-     * Configuration properties for SSH connection.
-     */
-    data class SshProperties(
-        /**
-         * The hostname or IP address of the SSH server.
-         */
-        val host: String = "localhost",
-
-        /**
-         * The port of the SSH server.
-         */
-        val port: Int = 22,
-
-        /**
-         * The username for SSH authentication.
-         */
-        val username: String = "root",
-
-        /**
-         * The password for SSH authentication.
-         * Note: Using private key authentication is recommended over password authentication.
-         */
-        val password: String? = null,
-
-        /**
-         * The path to the private key file for SSH authentication.
-         */
-        val privateKeyPath: String? = null,
-
-        /**
-         * The passphrase for the private key, if it is encrypted.
-         */
-        val privateKeyPassphrase: String? = null,
-
-        /**
-         * The timeout for SSH connection in milliseconds.
-         */
-        val connectionTimeout: Int = 30000,
-
-        /**
-         * Whether to use strict host key checking.
-         */
-        val strictHostKeyChecking: Boolean = false,
-    )

@@ -27,8 +27,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
 
-    // SSH
-    implementation("com.jcraft:jsch:0.1.55")
 
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
