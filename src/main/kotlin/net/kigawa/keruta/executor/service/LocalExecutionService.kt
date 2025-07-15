@@ -25,14 +25,13 @@ class LocalExecutionService(
         logger.info("Executing command locally: $command")
 
         try {
-            // Create a temporary script file
-            val scriptFile = createScriptFile(command)
-
-            // Make the script executable
-            scriptFile.setExecutable(true)
+            // Split the command into parts
+            // This is a simple implementation that may not handle all complex command scenarios
+            // For more complex commands, a proper command parser might be needed
+            val commandParts = command.split("\\s+".toRegex()).toTypedArray()
 
             // Build the process
-            val processBuilder = ProcessBuilder("/bin/sh", scriptFile.absolutePath)
+            val processBuilder = ProcessBuilder(*commandParts)
 
             // Set environment variables
             val processEnv = processBuilder.environment()
@@ -62,25 +61,11 @@ class LocalExecutionService(
             // Log output
             logger.debug("Command output: $output")
 
-            // Delete the temporary script file
-            scriptFile.delete()
-
             // Return output
             return output
         } catch (e: Exception) {
             logger.error("Error executing command locally", e)
             throw e
         }
-    }
-
-    /**
-     * Creates a temporary script file with the given command.
-     * @param command the command to execute
-     * @return the temporary script file
-     */
-    private fun createScriptFile(command: String): File {
-        val scriptFile = File.createTempFile("keruta-script-", ".sh")
-        scriptFile.writeText("#!/bin/bash\n$command")
-        return scriptFile
     }
 }
