@@ -23,6 +23,15 @@ WORKDIR /app
 # Copy the built jar file from the builder stage
 COPY --from=builder /app/build/libs/*.jar app.jar
 
+# Install coder CLI
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://coder.com/install.sh | sh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create coder working directory
+RUN mkdir -p /tmp/coder
+
 # Set environment variables
 ENV SPRING_PROFILES_ACTIVE=prod
 
