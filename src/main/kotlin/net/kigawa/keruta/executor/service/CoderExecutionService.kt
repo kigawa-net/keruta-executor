@@ -21,6 +21,21 @@ class CoderExecutionService(
     private val logger = LoggerFactory.getLogger(CoderExecutionService::class.java)
 
     /**
+     * Executes the coder CLI with the given arguments.
+     * @param args the arguments to pass to the coder CLI
+     * @param environment the environment variables to set
+     * @return the output of the coder CLI
+     */
+    fun executeCoder(args: String, environment: Map<String, String> = emptyMap()): String {
+        logger.info("Executing coder CLI with arguments: $args")
+
+        val command = "${properties.coder.command} $args"
+        val combinedEnv = properties.coder.additionalEnv + environment
+
+        return localExecutionService.executeCommand(command, combinedEnv)
+    }
+
+    /**
      * Executes a task locally.
      * @param task the task to execute
      * @return true if the task was executed successfully, false otherwise
