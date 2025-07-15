@@ -1,6 +1,7 @@
 package net.kigawa.keruta.executor.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.NestedConfigurationProperty
 import org.springframework.boot.context.properties.bind.ConstructorBinding
 import java.time.Duration
 
@@ -22,11 +23,13 @@ data class KerutaExecutorProperties @ConstructorBinding constructor(
     /**
      * Configuration for the coder integration.
      */
+    @NestedConfigurationProperty
     val coder: CoderProperties,
 
     /**
      * Configuration for SSH connection.
      */
+    @NestedConfigurationProperty
     val ssh: SshProperties = SshProperties(),
 )
 

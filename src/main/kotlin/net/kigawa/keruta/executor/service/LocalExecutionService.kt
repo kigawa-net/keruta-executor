@@ -80,7 +80,7 @@ class LocalExecutionService(
      */
     private fun createScriptFile(command: String): File {
         val scriptFile = File.createTempFile("keruta-script-", ".sh")
-        scriptFile.writeText("#!/bin/sh\n$command")
+        scriptFile.writeText("#!/bin/bash\n$command")
         return scriptFile
     }
 }
