@@ -20,7 +20,7 @@ import java.time.Duration
 @Service
 class TaskApiService(
     private val properties: KerutaExecutorProperties,
-    private val webClientBuilder: WebClient.Builder,
+    private val webClientBuilder: WebClient.Builder
 ) {
     private val logger = LoggerFactory.getLogger(TaskApiService::class.java)
     private val webClient by lazy {
@@ -89,7 +89,11 @@ class TaskApiService(
                     Retry.backoff(3, Duration.ofSeconds(1))
                         .maxBackoff(Duration.ofSeconds(5))
                         .filter { it is WebClientResponseException && it.statusCode.is5xxServerError }
-                        .doBeforeRetry { logger.warn("Retrying log append for task $taskId after server error: ${it.failure().message}") }
+                        .doBeforeRetry {
+                            logger.warn(
+                                "Retrying log append for task $taskId after server error: ${it.failure().message}"
+                            )
+                        }
                 )
                 .block() ?: false
         } catch (e: Exception) {

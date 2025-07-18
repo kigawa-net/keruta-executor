@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class TaskProcessor(
     private val taskApiService: TaskApiService,
     private val coderExecutionService: CoderExecutionService,
-    private val properties: KerutaExecutorProperties,
+    private val properties: KerutaExecutorProperties
 ) {
     private val logger = LoggerFactory.getLogger(TaskProcessor::class.java)
     private val isProcessing = AtomicBoolean(false)

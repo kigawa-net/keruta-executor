@@ -16,7 +16,7 @@ import java.nio.file.Paths
 class CoderExecutionService(
     private val properties: KerutaExecutorProperties,
     private val taskApiService: TaskApiService,
-    private val localExecutionService: LocalExecutionService,
+    private val localExecutionService: LocalExecutionService
 ) {
     private val logger = LoggerFactory.getLogger(CoderExecutionService::class.java)
 
@@ -46,10 +46,13 @@ class CoderExecutionService(
         try {
             // Update task status to IN_PROGRESS
             if (taskApiService.updateTaskStatus(
-                task.id,
-                TaskStatus.IN_PROGRESS,
-                "Task execution started"
-            ) == null) return false
+                    task.id,
+                    TaskStatus.IN_PROGRESS,
+                    "Task execution started"
+                ) == null
+            ) {
+                return false
+            }
 
             // Get the task script
             val script = taskApiService.getTaskScript(task.id)
@@ -80,24 +83,9 @@ class CoderExecutionService(
                 return false
             }
 
-            // Execute install script if not empty
-            if (script.installScript.isNotBlank()) {
-                logger.info("Executing install script for task ${task.id}")
-                val installOutput = executeScript(task.id, "install", script.installScript, script.environment)
-                taskApiService.appendTaskLogs(task.id, "Install script output:\n$installOutput")
-            }
-
-            // Execute main script
-            logger.info("Executing main script for task ${task.id}")
-            val executeOutput = executeScript(task.id, "execute", script.executeScript, script.environment)
-            taskApiService.appendTaskLogs(task.id, "Execute script output:\n$executeOutput")
-
-            // Execute cleanup script if not empty
-            if (script.cleanupScript.isNotBlank()) {
-                logger.info("Executing cleanup script for task ${task.id}")
-                val cleanupOutput = executeScript(task.id, "cleanup", script.cleanupScript, script.environment)
-                taskApiService.appendTaskLogs(task.id, "Cleanup script output:\n$cleanupOutput")
-            }
+            // Task execution disabled - script execution has been removed
+            logger.info("Task execution completed - script execution functionality removed")
+            taskApiService.appendTaskLogs(task.id, "Task processing completed (script execution disabled)")
 
             // Update task status to COMPLETED
             taskApiService.updateTaskStatus(
@@ -108,7 +96,6 @@ class CoderExecutionService(
 
             logger.info("Task ${task.id} executed successfully")
             return true
-
         } catch (e: Exception) {
             logger.error("Error executing task ${task.id}", e)
             taskApiService.updateTaskStatus(
@@ -135,31 +122,6 @@ class CoderExecutionService(
         } catch (e: Exception) {
             logger.error("Error creating working directory for task ${task.id}", e)
             null
-        }
-    }
-
-    /**
-     * Executes a script locally.
-     * @param taskId the ID of the task
-     * @param scriptType the type of script (install, execute, cleanup)
-     * @param scriptContent the content of the script
-     * @param environment the environment variables to set
-     * @return the output of the script
-     */
-    private fun executeScript(
-        taskId: String,
-        scriptType: String,
-        scriptContent: String,
-        environment: Map<String, String>
-    ): String {
-        logger.debug("Executing $scriptType script for task $taskId")
-
-        try {
-            // Execute the script locally
-            return localExecutionService.executeCommand(scriptContent, environment)
-        } catch (e: Exception) {
-            logger.error("Error executing $scriptType script for task $taskId", e)
-            throw e
         }
     }
 }

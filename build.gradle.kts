@@ -27,7 +27,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
 
-
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
 

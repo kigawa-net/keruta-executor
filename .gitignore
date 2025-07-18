@@ -2,3 +2,4 @@
 **/build/
 /error.log
 /keruta-executor/.gradle/
+/hs_err_pid*.log

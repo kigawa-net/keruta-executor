@@ -27,7 +27,7 @@ data class Task(
     val storageClass: String = "",
     val pvcName: String? = null,
     val createdAt: LocalDateTime = LocalDateTime.now(),
-    val updatedAt: LocalDateTime = LocalDateTime.now(),
+    val updatedAt: LocalDateTime = LocalDateTime.now()
 )
 
 /**
@@ -39,7 +39,7 @@ enum class TaskStatus {
     COMPLETED,
     CANCELLED,
     FAILED,
-    WAITING_FOR_INPUT,
+    WAITING_FOR_INPUT
 }
 
 /**
@@ -47,5 +47,5 @@ enum class TaskStatus {
  */
 data class TaskStatusUpdate(
     val status: TaskStatus,
-    val message: String? = null,
+    val message: String? = null
 )

@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class LocalExecutionService(
-    private val properties: KerutaExecutorProperties,
+    private val properties: KerutaExecutorProperties
 ) {
     private val logger = LoggerFactory.getLogger(LocalExecutionService::class.java)
 
@@ -52,7 +52,7 @@ class LocalExecutionService(
 
             if (!completed) {
                 process.destroyForcibly()
-                throw RuntimeException("Command execution timed out after ${timeoutSeconds} seconds")
+                throw RuntimeException("Command execution timed out after $timeoutSeconds seconds")
             }
 
             // Get the output
