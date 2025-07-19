@@ -18,7 +18,7 @@ import java.time.LocalDateTime
 @Service
 class SessionMonitoringService(
     private val restTemplate: RestTemplate,
-    private val properties: KerutaExecutorProperties,
+    private val properties: KerutaExecutorProperties
 ) {
     private val logger = LoggerFactory.getLogger(SessionMonitoringService::class.java)
 
@@ -29,28 +29,26 @@ class SessionMonitoringService(
     @Scheduled(fixedDelay = 30000)
     fun monitorNewSessions() {
         logger.debug("Monitoring new sessions for workspace creation")
-        
         try {
             // Get all PENDING sessions
             val pendingSessions = getPendingSessions()
-            
+
             for (session in pendingSessions) {
                 logger.info("Processing new session: sessionId={}", session.id)
-                
+
                 // Check if workspace already exists for this session
                 val workspaces = getWorkspacesBySessionId(session.id)
-                
+
                 if (workspaces.isEmpty()) {
                     // Create workspace for this session
                     createWorkspaceForSession(session)
-                    
+
                     // Update session status to ACTIVE
                     updateSessionStatus(session.id, "ACTIVE")
                 } else {
                     logger.debug("Workspace already exists for session: sessionId={}", session.id)
                 }
             }
-            
         } catch (e: Exception) {
             logger.error("Error monitoring new sessions", e)
         }
@@ -63,27 +61,29 @@ class SessionMonitoringService(
     @Scheduled(fixedDelay = 60000)
     fun monitorActiveSessions() {
         logger.debug("Monitoring active sessions")
-        
+
         try {
             // Get all ACTIVE sessions
             val activeSessions = getActiveSessions()
-            
+
             for (session in activeSessions) {
                 logger.debug("Checking active session: sessionId={}", session.id)
-                
+
                 // Get workspaces for this session
                 val workspaces = getWorkspacesBySessionId(session.id)
-                
+
                 for (workspace in workspaces) {
                     // Check if workspace is running
                     if (workspace.status != "RUNNING") {
-                        logger.info("Starting workspace for active session: sessionId={} workspaceId={}", 
-                                   session.id, workspace.id)
+                        logger.info(
+                            "Starting workspace for active session: sessionId={} workspaceId={}",
+                            session.id,
+                            workspace.id
+                        )
                         startWorkspace(workspace.id)
                     }
                 }
             }
-            
         } catch (e: Exception) {
             logger.error("Error monitoring active sessions", e)
         }
@@ -93,7 +93,7 @@ class SessionMonitoringService(
      * Gets all pending sessions from the API.
      */
     private fun getPendingSessions(): List<SessionDto> {
-        val url = "${properties.api.baseUrl}/api/v1/sessions?status=PENDING"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=PENDING"
         return restTemplate.getForObject<List<SessionDto>>(url) ?: emptyList()
     }
 
@@ -101,7 +101,7 @@ class SessionMonitoringService(
      * Gets all active sessions from the API.
      */
     private fun getActiveSessions(): List<SessionDto> {
-        val url = "${properties.api.baseUrl}/api/v1/sessions?status=ACTIVE"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=ACTIVE"
         return restTemplate.getForObject<List<SessionDto>>(url) ?: emptyList()
     }
 
@@ -109,7 +109,7 @@ class SessionMonitoringService(
      * Gets workspaces by session ID.
      */
     private fun getWorkspacesBySessionId(sessionId: String): List<WorkspaceDto> {
-        val url = "${properties.api.baseUrl}/api/v1/workspaces?sessionId=$sessionId"
+        val url = "${properties.apiBaseUrl}/api/v1/workspaces?sessionId=$sessionId"
         return restTemplate.getForObject<List<WorkspaceDto>>(url) ?: emptyList()
     }
 
@@ -118,26 +118,29 @@ class SessionMonitoringService(
      */
     private fun createWorkspaceForSession(session: SessionDto) {
         logger.info("Creating workspace for session: sessionId={}", session.id)
-        
-        val url = "${properties.api.baseUrl}/api/v1/workspaces"
+
+        val url = "${properties.apiBaseUrl}/api/v1/workspaces"
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
         }
-        
+
         val createRequest = CreateWorkspaceRequest(
             name = "${session.name}-workspace",
             sessionId = session.id,
             templateId = null,
             automaticUpdates = true,
-            ttlMs = 3600000, // 1 hour
+            ttlMs = 3600000 // 1 hour
         )
-        
+
         val entity = HttpEntity(createRequest, headers)
-        
+
         try {
             val response = restTemplate.exchange(url, HttpMethod.POST, entity, WorkspaceDto::class.java)
-            logger.info("Successfully created workspace: sessionId={} workspaceId={}", 
-                       session.id, response.body?.id)
+            logger.info(
+                "Successfully created workspace: sessionId={} workspaceId={}",
+                session.id,
+                response.body?.id
+            )
         } catch (e: Exception) {
             logger.error("Failed to create workspace for session: sessionId={}", session.id, e)
             throw e
@@ -149,15 +152,15 @@ class SessionMonitoringService(
      */
     private fun updateSessionStatus(sessionId: String, status: String) {
         logger.info("Updating session status: sessionId={} status={}", sessionId, status)
-        
-        val url = "${properties.api.baseUrl}/api/v1/sessions/$sessionId/status"
+
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/$sessionId/status"
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
         }
-        
+
         val updateRequest = UpdateSessionStatusRequest(status)
         val entity = HttpEntity(updateRequest, headers)
-        
+
         try {
             restTemplate.exchange(url, HttpMethod.PUT, entity, SessionDto::class.java)
             logger.info("Successfully updated session status: sessionId={} status={}", sessionId, status)
@@ -171,14 +174,14 @@ class SessionMonitoringService(
      */
     private fun startWorkspace(workspaceId: String) {
         logger.info("Starting workspace: workspaceId={}", workspaceId)
-        
-        val url = "${properties.api.baseUrl}/api/v1/workspaces/$workspaceId/start"
+
+        val url = "${properties.apiBaseUrl}/api/v1/workspaces/$workspaceId/start"
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
         }
-        
+
         val entity = HttpEntity<Any>(headers)
-        
+
         try {
             restTemplate.exchange(url, HttpMethod.POST, entity, WorkspaceDto::class.java)
             logger.info("Successfully started workspace: workspaceId={}", workspaceId)
@@ -197,7 +200,7 @@ data class SessionDto(
     val status: String,
     val tags: List<String>,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime,
+    val updatedAt: LocalDateTime
 )
 
 /**
@@ -211,7 +214,7 @@ data class WorkspaceDto(
     val coderWorkspaceId: String?,
     val workspaceUrl: String?,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime,
+    val updatedAt: LocalDateTime
 )
 
 /**
@@ -222,12 +225,12 @@ data class CreateWorkspaceRequest(
     val sessionId: String,
     val templateId: String?,
     val automaticUpdates: Boolean,
-    val ttlMs: Long,
+    val ttlMs: Long
 )
 
 /**
  * Request for updating session status.
  */
 data class UpdateSessionStatusRequest(
-    val status: String,
+    val status: String
 )
