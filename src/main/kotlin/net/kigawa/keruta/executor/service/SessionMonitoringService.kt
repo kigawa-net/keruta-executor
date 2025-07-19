@@ -8,8 +8,8 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.core.ParameterizedTypeReference
 import org.springframework.web.client.RestTemplate
-import org.springframework.web.client.getForObject
 import java.time.LocalDateTime
 
 /**
@@ -94,7 +94,8 @@ class SessionMonitoringService(
      */
     private fun getPendingSessions(): List<SessionDto> {
         val url = "${properties.apiBaseUrl}/api/v1/sessions?status=PENDING"
-        return restTemplate.getForObject<List<SessionDto>>(url) ?: emptyList()
+        val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
+        return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
 
     /**
@@ -102,7 +103,8 @@ class SessionMonitoringService(
      */
     private fun getActiveSessions(): List<SessionDto> {
         val url = "${properties.apiBaseUrl}/api/v1/sessions?status=ACTIVE"
-        return restTemplate.getForObject<List<SessionDto>>(url) ?: emptyList()
+        val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
+        return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
 
     /**
@@ -110,7 +112,8 @@ class SessionMonitoringService(
      */
     private fun getWorkspacesBySessionId(sessionId: String): List<WorkspaceDto> {
         val url = "${properties.apiBaseUrl}/api/v1/workspaces?sessionId=$sessionId"
-        return restTemplate.getForObject<List<WorkspaceDto>>(url) ?: emptyList()
+        val typeReference = object : ParameterizedTypeReference<List<WorkspaceDto>>() {}
+        return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
 
     /**
