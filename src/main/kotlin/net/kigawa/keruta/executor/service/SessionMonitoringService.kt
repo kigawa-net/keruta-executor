@@ -78,14 +78,39 @@ class SessionMonitoringService(
                 val workspaces = getWorkspacesBySessionId(session.id)
 
                 for (workspace in workspaces) {
-                    // Check if workspace is running
-                    if (workspace.status != "RUNNING") {
-                        logger.info(
-                            "Starting workspace for active session: sessionId={} workspaceId={}",
-                            session.id,
-                            workspace.id
-                        )
-                        startWorkspace(workspace.id)
+                    // Only start workspace if it's in STOPPED or PENDING state
+                    when (workspace.status) {
+                        "STOPPED", "PENDING" -> {
+                            logger.info(
+                                "Starting workspace for active session: sessionId={} workspaceId={} status={}",
+                                session.id,
+                                workspace.id,
+                                workspace.status
+                            )
+                            startWorkspace(workspace.id)
+                        }
+                        "STARTING" -> {
+                            logger.debug(
+                                "Workspace is already starting: sessionId={} workspaceId={}",
+                                session.id,
+                                workspace.id
+                            )
+                        }
+                        "RUNNING" -> {
+                            logger.debug(
+                                "Workspace is already running: sessionId={} workspaceId={}",
+                                session.id,
+                                workspace.id
+                            )
+                        }
+                        else -> {
+                            logger.debug(
+                                "Workspace in non-startable status: sessionId={} workspaceId={} status={}",
+                                session.id,
+                                workspace.id,
+                                workspace.status
+                            )
+                        }
                     }
                 }
             }
