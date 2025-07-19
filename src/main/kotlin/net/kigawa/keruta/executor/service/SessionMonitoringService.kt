@@ -122,6 +122,14 @@ class SessionMonitoringService(
     private fun createWorkspaceForSession(session: SessionDto) {
         logger.info("Creating workspace for session: sessionId={}", session.id)
 
+        // First, try to get available templates
+        val templateId = try {
+            getFirstAvailableTemplateId()
+        } catch (e: Exception) {
+            logger.warn("Failed to get template, proceeding with null templateId", e)
+            null
+        }
+
         val url = "${properties.apiBaseUrl}/api/v1/workspaces"
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
@@ -130,7 +138,7 @@ class SessionMonitoringService(
         val createRequest = CreateWorkspaceRequest(
             name = "${session.name}-workspace",
             sessionId = session.id,
-            templateId = null,
+            templateId = templateId,
             automaticUpdates = true,
             ttlMs = 3600000 // 1 hour
         )
@@ -148,6 +156,32 @@ class SessionMonitoringService(
             logger.error("Failed to create workspace for session: sessionId={}", session.id, e)
             throw e
         }
+    }
+
+    /**
+     * Gets the first available template ID.
+     */
+    private fun getFirstAvailableTemplateId(): String? {
+        val url = "${properties.apiBaseUrl}/api/v1/workspace-templates"
+        val typeReference = object : ParameterizedTypeReference<List<WorkspaceTemplateDto>>() {}
+        val templates = restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
+        
+        // First try to find default template
+        val defaultTemplate = templates.find { it.isDefault }
+        if (defaultTemplate != null) {
+            logger.debug("Using default template: {}", defaultTemplate.id)
+            return defaultTemplate.id
+        }
+        
+        // If no default template, use the first available template
+        val firstTemplate = templates.firstOrNull()
+        if (firstTemplate != null) {
+            logger.debug("Using first available template: {}", firstTemplate.id)
+            return firstTemplate.id
+        }
+        
+        logger.warn("No templates available")
+        return null
     }
 
     /**
@@ -236,4 +270,18 @@ data class CreateWorkspaceRequest(
  */
 data class UpdateSessionStatusRequest(
     val status: String
+)
+
+/**
+ * DTO for workspace template data.
+ */
+data class WorkspaceTemplateDto(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val version: String,
+    val icon: String?,
+    val isDefault: Boolean,
+    val createdAt: LocalDateTime,
+    val updatedAt: LocalDateTime
 )
