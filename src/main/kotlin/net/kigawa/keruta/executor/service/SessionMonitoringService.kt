@@ -36,17 +36,22 @@ class SessionMonitoringService(
             for (session in pendingSessions) {
                 logger.info("Processing new session: sessionId={}", session.id)
 
-                // Check if workspace already exists for this session
-                val workspaces = getWorkspacesBySessionId(session.id)
+                try {
+                    // Check if workspace already exists for this session
+                    val workspaces = getWorkspacesBySessionId(session.id)
 
-                if (workspaces.isEmpty()) {
-                    // Create workspace for this session
-                    createWorkspaceForSession(session)
+                    if (workspaces.isEmpty()) {
+                        // Create workspace for this session
+                        createWorkspaceForSession(session)
 
-                    // Update session status to ACTIVE
-                    updateSessionStatus(session.id, "ACTIVE")
-                } else {
-                    logger.debug("Workspace already exists for session: sessionId={}", session.id)
+                        // Update session status to ACTIVE
+                        updateSessionStatus(session.id, "ACTIVE")
+                    } else {
+                        logger.debug("Workspace already exists for session: sessionId={}", session.id)
+                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to process session: sessionId={}", session.id, e)
+                    // Continue with next session
                 }
             }
         } catch (e: Exception) {
@@ -122,7 +127,7 @@ class SessionMonitoringService(
     private fun createWorkspaceForSession(session: SessionDto) {
         logger.info("Creating workspace for session: sessionId={}", session.id)
 
-        // First, try to get available templates
+        // Try to get available templates
         val templateId = try {
             getFirstAvailableTemplateId()
         } catch (e: Exception) {
@@ -162,7 +167,7 @@ class SessionMonitoringService(
      * Gets the first available template ID.
      */
     private fun getFirstAvailableTemplateId(): String? {
-        val url = "${properties.apiBaseUrl}/api/v1/workspace-templates"
+        val url = "${properties.apiBaseUrl}/api/v1/workspaces/templates"
         val typeReference = object : ParameterizedTypeReference<List<WorkspaceTemplateDto>>() {}
         val templates = restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
         
