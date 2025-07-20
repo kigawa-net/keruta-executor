@@ -34,7 +34,6 @@ open class SessionMonitoringService(
         try {
             // Get all PENDING sessions
             val pendingSessions = getPendingSessions()
-            
             if (pendingSessions.isNotEmpty()) {
                 logger.info("Found {} pending sessions to process", pendingSessions.size)
             }
@@ -47,7 +46,10 @@ open class SessionMonitoringService(
                     val workspaces = getWorkspacesBySessionId(session.id)
 
                     if (workspaces.isEmpty()) {
-                        logger.warn("No workspace found for session: sessionId={}. This should not happen in 1:1 model.", session.id)
+                        logger.warn(
+                            "No workspace found for session: sessionId={}. This should not happen in 1:1 model.",
+                            session.id
+                        )
                         // For backward compatibility or edge cases, try to create workspace
                         // But handle the case where auto-creation already happened
                         try {
@@ -58,7 +60,11 @@ open class SessionMonitoringService(
                         // Always try to update status regardless of workspace creation result
                         updateSessionStatus(session.id, "ACTIVE")
                     } else {
-                        logger.info("Workspace exists for session: sessionId={} workspaceId={}", session.id, workspaces.first().id)
+                        logger.info(
+                            "Workspace exists for session: sessionId={} workspaceId={}",
+                            session.id,
+                            workspaces.first().id
+                        )
                         // Update session status to ACTIVE if workspace exists
                         updateSessionStatus(session.id, "ACTIVE")
                     }
@@ -198,10 +204,19 @@ open class SessionMonitoringService(
         } catch (e: org.springframework.web.client.HttpClientErrorException) {
             if (e.statusCode.value() == 400) {
                 // This might be due to workspace already existing (1:1 relationship)
-                logger.warn("Workspace creation failed, likely due to existing workspace: sessionId={} error={}", session.id, e.message)
+                logger.warn(
+                    "Workspace creation failed, likely due to existing workspace: sessionId={} error={}",
+                    session.id,
+                    e.message
+                )
                 // Don't throw the exception, just log it
             } else {
-                logger.error("Failed to create workspace for session (HTTP {}): sessionId={}", e.statusCode.value(), session.id, e)
+                logger.error(
+                    "Failed to create workspace for session (HTTP {}): sessionId={}",
+                    e.statusCode.value(),
+                    session.id,
+                    e
+                )
                 throw e
             }
         } catch (e: org.springframework.web.client.HttpServerErrorException) {
