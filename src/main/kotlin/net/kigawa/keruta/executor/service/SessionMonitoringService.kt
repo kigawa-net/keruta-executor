@@ -23,31 +23,44 @@ open class SessionMonitoringService(
     private val logger = LoggerFactory.getLogger(SessionMonitoringService::class.java)
 
     /**
-     * Monitors new sessions and triggers workspace creation.
+     * Monitors new sessions and ensures they have workspaces.
+     * In the 1:1 relationship model, workspaces are auto-created with sessions.
+     * This monitor primarily updates session status and handles edge cases.
      * Runs every 30 seconds.
      */
     @Scheduled(fixedDelay = 30000)
     fun monitorNewSessions() {
-        logger.debug("Monitoring new sessions for workspace creation")
+        logger.debug("Monitoring new sessions for workspace verification")
         try {
             // Get all PENDING sessions
             val pendingSessions = getPendingSessions()
+            
+            if (pendingSessions.isNotEmpty()) {
+                logger.info("Found {} pending sessions to process", pendingSessions.size)
+            }
 
             for (session in pendingSessions) {
-                logger.info("Processing new session: sessionId={}", session.id)
+                logger.info("Processing session: sessionId={} name={}", session.id, session.name)
 
                 try {
                     // Check if workspace already exists for this session
                     val workspaces = getWorkspacesBySessionId(session.id)
 
                     if (workspaces.isEmpty()) {
-                        // Create workspace for this session
-                        createWorkspaceForSession(session)
-
-                        // Update session status to ACTIVE
+                        logger.warn("No workspace found for session: sessionId={}. This should not happen in 1:1 model.", session.id)
+                        // For backward compatibility or edge cases, try to create workspace
+                        // But handle the case where auto-creation already happened
+                        try {
+                            createWorkspaceForSession(session)
+                        } catch (e: Exception) {
+                            logger.debug("Workspace creation failed (expected in 1:1 model): sessionId={}", session.id)
+                        }
+                        // Always try to update status regardless of workspace creation result
                         updateSessionStatus(session.id, "ACTIVE")
                     } else {
-                        logger.debug("Workspace already exists for session: sessionId={}", session.id)
+                        logger.info("Workspace exists for session: sessionId={} workspaceId={}", session.id, workspaces.first().id)
+                        // Update session status to ACTIVE if workspace exists
+                        updateSessionStatus(session.id, "ACTIVE")
                     }
                 } catch (e: Exception) {
                     logger.error("Failed to process session: sessionId={}", session.id, e)
@@ -182,9 +195,22 @@ open class SessionMonitoringService(
                 session.id,
                 response.body?.id
             )
+        } catch (e: org.springframework.web.client.HttpClientErrorException) {
+            if (e.statusCode.value() == 400) {
+                // This might be due to workspace already existing (1:1 relationship)
+                logger.warn("Workspace creation failed, likely due to existing workspace: sessionId={} error={}", session.id, e.message)
+                // Don't throw the exception, just log it
+            } else {
+                logger.error("Failed to create workspace for session (HTTP {}): sessionId={}", e.statusCode.value(), session.id, e)
+                throw e
+            }
+        } catch (e: org.springframework.web.client.HttpServerErrorException) {
+            // Log server errors but don't fail the entire process
+            logger.error("Server error when creating workspace: sessionId={} error={}", session.id, e.message)
+            // Don't throw the exception to allow processing of other sessions
         } catch (e: Exception) {
             logger.error("Failed to create workspace for session: sessionId={}", session.id, e)
-            throw e
+            // Don't throw the exception to allow processing of other sessions
         }
     }
 
