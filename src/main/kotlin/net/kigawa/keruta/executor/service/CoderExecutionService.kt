@@ -13,7 +13,7 @@ import java.nio.file.Paths
  * Service for executing tasks locally.
  */
 @Service
-class CoderExecutionService(
+open class CoderExecutionService(
     private val properties: KerutaExecutorProperties,
     private val taskApiService: TaskApiService,
     private val localExecutionService: LocalExecutionService

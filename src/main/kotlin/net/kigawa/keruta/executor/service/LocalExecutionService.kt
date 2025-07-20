@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
  * Service for executing commands locally.
  */
 @Service
-class LocalExecutionService(
+open class LocalExecutionService(
     private val properties: KerutaExecutorProperties
 ) {
     private val logger = LoggerFactory.getLogger(LocalExecutionService::class.java)

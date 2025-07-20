@@ -2,13 +2,13 @@ package net.kigawa.keruta.executor.service
 
 import net.kigawa.keruta.executor.config.KerutaExecutorProperties
 import org.slf4j.LoggerFactory
+import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import org.springframework.core.ParameterizedTypeReference
 import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
 
@@ -16,7 +16,7 @@ import java.time.LocalDateTime
  * Service for monitoring session state and triggering workspace creation.
  */
 @Service
-class SessionMonitoringService(
+open class SessionMonitoringService(
     private val restTemplate: RestTemplate,
     private val properties: KerutaExecutorProperties
 ) {
@@ -195,21 +195,21 @@ class SessionMonitoringService(
         val url = "${properties.apiBaseUrl}/api/v1/workspaces/templates"
         val typeReference = object : ParameterizedTypeReference<List<WorkspaceTemplateDto>>() {}
         val templates = restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
-        
+
         // First try to find default template
         val defaultTemplate = templates.find { it.isDefault }
         if (defaultTemplate != null) {
             logger.debug("Using default template: {}", defaultTemplate.id)
             return defaultTemplate.id
         }
-        
+
         // If no default template, use the first available template
         val firstTemplate = templates.firstOrNull()
         if (firstTemplate != null) {
             logger.debug("Using first available template: {}", firstTemplate.id)
             return firstTemplate.id
         }
-        
+
         logger.warn("No templates available")
         return null
     }

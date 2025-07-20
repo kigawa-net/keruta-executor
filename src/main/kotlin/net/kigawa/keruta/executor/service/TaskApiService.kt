@@ -18,7 +18,7 @@ import java.time.Duration
  * Service for interacting with the keruta-api task endpoints.
  */
 @Service
-class TaskApiService(
+open class TaskApiService(
     private val properties: KerutaExecutorProperties,
     private val webClientBuilder: WebClient.Builder
 ) {
