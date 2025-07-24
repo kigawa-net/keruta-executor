@@ -2,21 +2,6 @@ version: '3.8'
 
 services:
 
-  mongodb:
-    image: mongo:latest
-    container_name: keruta-mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    environment:
-      - MONGO_INITDB_DATABASE=keruta
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=password
-    restart: unless-stopped
-    networks:
-      - keruta-network
-
   keruta-executor:
     build:
       context: ..
@@ -25,18 +10,11 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - SPRING_DATA_MONGODB_HOST=mongodb
-      - SPRING_DATA_MONGODB_PORT=27017
-      - SPRING_DATA_MONGODB_DATABASE=keruta
-      - SPRING_DATA_MONGODB_USERNAME=admin
-      - SPRING_DATA_MONGODB_PASSWORD=password
-      - KERUTA_EXECUTOR_API_BASE_URL=http://localhost:8080
+      - KERUTA_EXECUTOR_API_BASE_URL=http://keruta-api:8080
       - KERUTA_EXECUTOR_PROCESSING_DELAY=10000
       - KERUTA_EXECUTOR_CODER_COMMAND=coder
       - KERUTA_EXECUTOR_CODER_WORKING_DIR=/tmp/coder
       - KERUTA_EXECUTOR_CODER_TIMEOUT=1800000
-    depends_on:
-      - mongodb
     restart: unless-stopped
     networks:
       - keruta-network
@@ -44,7 +22,3 @@ services:
 networks:
   keruta-network:
     driver: bridge
-
-volumes:
-  mongodb_data:
-    driver: local
