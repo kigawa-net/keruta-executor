@@ -11,10 +11,6 @@ services:
       - "8081:8081"
     environment:
       - KERUTA_EXECUTOR_API_BASE_URL=http://keruta-api:8080
-      - KERUTA_EXECUTOR_PROCESSING_DELAY=10000
-      - KERUTA_EXECUTOR_CODER_COMMAND=coder
-      - KERUTA_EXECUTOR_CODER_WORKING_DIR=/tmp/coder
-      - KERUTA_EXECUTOR_CODER_TIMEOUT=1800000
     restart: unless-stopped
     networks:
       - keruta-network
