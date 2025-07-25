@@ -13,4 +13,3 @@ data class KerutaExecutorProperties @ConstructorBinding constructor(
      */
     val apiBaseUrl: String
 )
-
