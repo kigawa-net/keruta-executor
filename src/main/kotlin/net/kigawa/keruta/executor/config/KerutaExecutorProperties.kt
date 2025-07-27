@@ -12,11 +12,11 @@ data class KerutaExecutorProperties @ConstructorBinding constructor(
      * The base URL of the keruta-api.
      */
     val apiBaseUrl: String,
-    
+
     /**
      * Coder server configuration.
      */
-    val coder: CoderProperties
+    val coder: CoderProperties = CoderProperties("http://localhost:7080")
 )
 
 /**
@@ -27,7 +27,7 @@ data class CoderProperties(
      * The base URL of the Coder server.
      */
     val baseUrl: String,
-    
+
     /**
      * API token for authenticating with Coder server.
      */

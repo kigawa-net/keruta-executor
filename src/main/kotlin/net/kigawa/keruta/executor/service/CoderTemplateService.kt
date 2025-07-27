@@ -31,10 +31,10 @@ open class CoderTemplateService(
             val headers = createAuthHeaders()
             val entity = HttpEntity<String>(headers)
             val typeReference = object : ParameterizedTypeReference<List<CoderTemplateApiResponse>>() {}
-            
+
             val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
             val apiTemplates = response.body ?: emptyList()
-            
+
             logger.info("Successfully fetched {} Coder templates", apiTemplates.size)
             return apiTemplates.map { it.toDto() }
         } catch (e: Exception) {
