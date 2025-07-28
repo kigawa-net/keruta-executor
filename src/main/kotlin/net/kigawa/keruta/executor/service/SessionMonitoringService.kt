@@ -9,8 +9,14 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.HttpServerErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 
 /**
  * Service for monitoring session state and triggering workspace creation.
@@ -21,6 +27,16 @@ open class SessionMonitoringService(
     private val properties: KerutaExecutorProperties
 ) {
     private val logger = LoggerFactory.getLogger(SessionMonitoringService::class.java)
+
+    // Circuit breaker pattern
+    private val failureCounters = ConcurrentHashMap<String, AtomicInteger>()
+    private val lastFailureTime = ConcurrentHashMap<String, Long>()
+    private val circuitOpenTime = ConcurrentHashMap<String, Long>()
+
+    // Configuration for circuit breaker
+    private val maxFailures = 5
+    private val circuitOpenDuration = 60000L // 1 minute
+    private val resetTimeout = 120000L // 2 minutes
 
     /**
      * Monitors new sessions and ensures they have workspaces.
@@ -42,8 +58,14 @@ open class SessionMonitoringService(
                 logger.info("Processing session: sessionId={} name={}", session.id, session.name)
 
                 try {
+                    // Check circuit breaker before processing
+                    if (isCircuitOpen("session_${session.id}")) {
+                        logger.warn("Circuit breaker is open for session: sessionId={}", session.id)
+                        continue
+                    }
+
                     // Check if workspace already exists for this session
-                    val workspaces = getWorkspacesBySessionId(session.id)
+                    val workspaces = getWorkspacesBySessionIdWithRetry(session.id)
 
                     if (workspaces.isEmpty()) {
                         logger.warn(
@@ -53,12 +75,12 @@ open class SessionMonitoringService(
                         // For backward compatibility or edge cases, try to create workspace
                         // But handle the case where auto-creation already happened
                         try {
-                            createWorkspaceForSession(session)
+                            createWorkspaceForSessionWithRetry(session)
                         } catch (e: Exception) {
                             logger.debug("Workspace creation failed (expected in 1:1 model): sessionId={}", session.id)
                         }
                         // Always try to update status regardless of workspace creation result
-                        updateSessionStatus(session.id, "ACTIVE")
+                        updateSessionStatusWithRetry(session.id, "ACTIVE")
                     } else {
                         logger.info(
                             "Workspace exists for session: sessionId={} workspaceId={}",
@@ -66,10 +88,14 @@ open class SessionMonitoringService(
                             workspaces.first().id
                         )
                         // Update session status to ACTIVE if workspace exists
-                        updateSessionStatus(session.id, "ACTIVE")
+                        updateSessionStatusWithRetry(session.id, "ACTIVE")
                     }
+
+                    // Record success
+                    recordSuccess("session_${session.id}")
                 } catch (e: Exception) {
-                    logger.error("Failed to process session: sessionId={}", session.id, e)
+                    recordFailure("session_${session.id}")
+                    logger.error("Failed to process session: sessionId={} error={}", session.id, e.message, e)
                     // Continue with next session
                 }
             }
@@ -93,44 +119,58 @@ open class SessionMonitoringService(
             for (session in activeSessions) {
                 logger.debug("Checking active session: sessionId={}", session.id)
 
-                // Get workspaces for this session
-                val workspaces = getWorkspacesBySessionId(session.id)
+                try {
+                    // Check circuit breaker
+                    if (isCircuitOpen("session_${session.id}")) {
+                        logger.warn("Circuit breaker is open for active session: sessionId={}", session.id)
+                        continue
+                    }
 
-                for (workspace in workspaces) {
-                    // Only start workspace if it's in STOPPED or PENDING state
-                    when (workspace.status) {
-                        "STOPPED", "PENDING" -> {
-                            logger.info(
-                                "Starting workspace for active session: sessionId={} workspaceId={} status={}",
-                                session.id,
-                                workspace.id,
-                                workspace.status
-                            )
-                            startWorkspace(workspace.id)
-                        }
-                        "STARTING" -> {
-                            logger.debug(
-                                "Workspace is already starting: sessionId={} workspaceId={}",
-                                session.id,
-                                workspace.id
-                            )
-                        }
-                        "RUNNING" -> {
-                            logger.debug(
-                                "Workspace is already running: sessionId={} workspaceId={}",
-                                session.id,
-                                workspace.id
-                            )
-                        }
-                        else -> {
-                            logger.debug(
-                                "Workspace in non-startable status: sessionId={} workspaceId={} status={}",
-                                session.id,
-                                workspace.id,
-                                workspace.status
-                            )
+                    // Get workspaces for this session
+                    val workspaces = getWorkspacesBySessionIdWithRetry(session.id)
+
+                    for (workspace in workspaces) {
+                        // Only start workspace if it's in STOPPED or PENDING state
+                        when (workspace.status) {
+                            "STOPPED", "PENDING" -> {
+                                logger.info(
+                                    "Starting workspace for active session: sessionId={} workspaceId={} status={}",
+                                    session.id,
+                                    workspace.id,
+                                    workspace.status
+                                )
+                                startWorkspaceWithRetry(workspace.id)
+                            }
+                            "STARTING" -> {
+                                logger.debug(
+                                    "Workspace is already starting: sessionId={} workspaceId={}",
+                                    session.id,
+                                    workspace.id
+                                )
+                            }
+                            "RUNNING" -> {
+                                logger.debug(
+                                    "Workspace is already running: sessionId={} workspaceId={}",
+                                    session.id,
+                                    workspace.id
+                                )
+                            }
+                            else -> {
+                                logger.debug(
+                                    "Workspace in non-startable status: sessionId={} workspaceId={} status={}",
+                                    session.id,
+                                    workspace.id,
+                                    workspace.status
+                                )
+                            }
                         }
                     }
+
+                    // Record success
+                    recordSuccess("session_${session.id}")
+                } catch (e: Exception) {
+                    recordFailure("session_${session.id}")
+                    logger.error("Failed to process active session: sessionId={} error={}", session.id, e.message, e)
                 }
             }
         } catch (e: Exception) {
@@ -163,6 +203,24 @@ open class SessionMonitoringService(
         val url = "${properties.apiBaseUrl}/api/v1/workspaces?sessionId=$sessionId"
         val typeReference = object : ParameterizedTypeReference<List<WorkspaceDto>>() {}
         return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
+    }
+
+    /**
+     * Gets workspaces by session ID with retry logic.
+     */
+    private fun getWorkspacesBySessionIdWithRetry(sessionId: String): List<WorkspaceDto> {
+        return executeWithRetry("getWorkspacesBySessionId", 3) {
+            getWorkspacesBySessionId(sessionId)
+        }
+    }
+
+    /**
+     * Creates a workspace for a session with retry logic.
+     */
+    private fun createWorkspaceForSessionWithRetry(session: SessionDto) {
+        executeWithRetry("createWorkspaceForSession", 2) {
+            createWorkspaceForSession(session)
+        }
     }
 
     /**
@@ -201,7 +259,7 @@ open class SessionMonitoringService(
                 session.id,
                 response.body?.id
             )
-        } catch (e: org.springframework.web.client.HttpClientErrorException) {
+        } catch (e: HttpClientErrorException) {
             if (e.statusCode.value() == 400) {
                 // This might be due to workspace already existing (1:1 relationship)
                 logger.warn(
@@ -219,13 +277,22 @@ open class SessionMonitoringService(
                 )
                 throw e
             }
-        } catch (e: org.springframework.web.client.HttpServerErrorException) {
-            // Log server errors but don't fail the entire process
-            logger.error("Server error when creating workspace: sessionId={} error={}", session.id, e.message)
-            // Don't throw the exception to allow processing of other sessions
+        } catch (e: HttpServerErrorException) {
+            // Log server errors and throw to trigger retry
+            logger.error(
+                "Server error when creating workspace: sessionId={} status={} error={}",
+                session.id,
+                e.statusCode.value(),
+                e.message
+            )
+            throw e
+        } catch (e: ResourceAccessException) {
+            // Network/connection issues - throw to trigger retry
+            logger.error("Network error when creating workspace: sessionId={} error={}", session.id, e.message)
+            throw e
         } catch (e: Exception) {
-            logger.error("Failed to create workspace for session: sessionId={}", session.id, e)
-            // Don't throw the exception to allow processing of other sessions
+            logger.error("Unexpected error creating workspace for session: sessionId={}", session.id, e)
+            throw e
         }
     }
 
@@ -256,6 +323,15 @@ open class SessionMonitoringService(
     }
 
     /**
+     * Updates session status with retry logic.
+     */
+    private fun updateSessionStatusWithRetry(sessionId: String, status: String) {
+        executeWithRetry("updateSessionStatus", 3) {
+            updateSessionStatus(sessionId, status)
+        }
+    }
+
+    /**
      * Updates session status.
      */
     private fun updateSessionStatus(sessionId: String, status: String) {
@@ -272,8 +348,44 @@ open class SessionMonitoringService(
         try {
             restTemplate.exchange(url, HttpMethod.PUT, entity, SessionDto::class.java)
             logger.info("Successfully updated session status: sessionId={} status={}", sessionId, status)
+        } catch (e: HttpClientErrorException) {
+            logger.error(
+                "Client error updating session status: sessionId={} status={} httpStatus={} error={}",
+                sessionId,
+                status,
+                e.statusCode.value(),
+                e.message
+            )
+            throw e
+        } catch (e: HttpServerErrorException) {
+            logger.error(
+                "Server error updating session status: sessionId={} status={} httpStatus={} error={}",
+                sessionId,
+                status,
+                e.statusCode.value(),
+                e.message
+            )
+            throw e
+        } catch (e: ResourceAccessException) {
+            logger.error(
+                "Network error updating session status: sessionId={} status={} error={}",
+                sessionId,
+                status,
+                e.message
+            )
+            throw e
         } catch (e: Exception) {
-            logger.error("Failed to update session status: sessionId={} status={}", sessionId, status, e)
+            logger.error("Unexpected error updating session status: sessionId={} status={}", sessionId, status, e)
+            throw e
+        }
+    }
+
+    /**
+     * Starts a workspace with retry logic.
+     */
+    private fun startWorkspaceWithRetry(workspaceId: String) {
+        executeWithRetry("startWorkspace", 3) {
+            startWorkspace(workspaceId)
         }
     }
 
@@ -293,9 +405,114 @@ open class SessionMonitoringService(
         try {
             restTemplate.exchange(url, HttpMethod.POST, entity, WorkspaceDto::class.java)
             logger.info("Successfully started workspace: workspaceId={}", workspaceId)
+        } catch (e: HttpClientErrorException) {
+            logger.error(
+                "Client error starting workspace: workspaceId={} httpStatus={} error={}",
+                workspaceId,
+                e.statusCode.value(),
+                e.message
+            )
+            throw e
+        } catch (e: HttpServerErrorException) {
+            logger.error(
+                "Server error starting workspace: workspaceId={} httpStatus={} error={}",
+                workspaceId,
+                e.statusCode.value(),
+                e.message
+            )
+            throw e
+        } catch (e: ResourceAccessException) {
+            logger.error(
+                "Network error starting workspace: workspaceId={} error={}",
+                workspaceId,
+                e.message
+            )
+            throw e
         } catch (e: Exception) {
-            logger.error("Failed to start workspace: workspaceId={}", workspaceId, e)
+            logger.error("Unexpected error starting workspace: workspaceId={}", workspaceId, e)
+            throw e
         }
+    }
+
+    /**
+     * Circuit breaker and retry utility methods
+     */
+    private fun isCircuitOpen(key: String): Boolean {
+        val openTime = circuitOpenTime[key]
+        if (openTime != null) {
+            val elapsed = System.currentTimeMillis() - openTime
+            if (elapsed > circuitOpenDuration) {
+                // Circuit breaker timeout - allow one test request
+                logger.info("Circuit breaker timeout for key: {}, allowing test request", key)
+                circuitOpenTime.remove(key)
+                return false
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun recordFailure(key: String) {
+        val counter = failureCounters.computeIfAbsent(key) { AtomicInteger(0) }
+        val failures = counter.incrementAndGet()
+        lastFailureTime[key] = System.currentTimeMillis()
+
+        if (failures >= maxFailures) {
+            logger.warn("Circuit breaker opened for key: {} after {} failures", key, failures)
+            circuitOpenTime[key] = System.currentTimeMillis()
+        }
+    }
+
+    private fun recordSuccess(key: String) {
+        failureCounters.remove(key)
+        lastFailureTime.remove(key)
+        circuitOpenTime.remove(key)
+    }
+
+    private fun <T> executeWithRetry(operation: String, maxRetries: Int, block: () -> T): T {
+        var lastException: Exception? = null
+
+        repeat(maxRetries) { attempt ->
+            try {
+                return block()
+            } catch (e: HttpClientErrorException) {
+                // Don't retry client errors (4xx)
+                logger.debug("Client error in {} (attempt {}): {}", operation, attempt + 1, e.message)
+                throw e
+            } catch (e: Exception) {
+                lastException = e
+                val isLastAttempt = attempt == maxRetries - 1
+
+                if (isLastAttempt) {
+                    logger.error("Final attempt failed for {}: {}", operation, e.message)
+                } else {
+                    val delay = calculateBackoffDelay(attempt)
+                    logger.warn(
+                        "Attempt {} failed for {}, retrying in {}ms: {}",
+                        attempt + 1,
+                        operation,
+                        delay,
+                        e.message
+                    )
+
+                    try {
+                        Thread.sleep(delay)
+                    } catch (ie: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        throw RuntimeException("Retry interrupted", ie)
+                    }
+                }
+            }
+        }
+
+        throw lastException ?: RuntimeException("Retry failed for operation: $operation")
+    }
+
+    private fun calculateBackoffDelay(attempt: Int): Long {
+        // Exponential backoff with jitter
+        val baseDelay = 1000L * (1L shl attempt) // 1s, 2s, 4s, 8s...
+        val jitter = Random.nextLong(0, baseDelay / 2)
+        return baseDelay + jitter
     }
 }
 
