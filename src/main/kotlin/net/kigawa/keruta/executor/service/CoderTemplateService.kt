@@ -7,6 +7,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Service
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
 
@@ -20,6 +21,9 @@ open class CoderTemplateService(
 ) {
     private val logger = LoggerFactory.getLogger(CoderTemplateService::class.java)
 
+    @Volatile
+    private var cachedToken: String? = null
+
     /**
      * Fetches available Coder templates from the Coder server.
      */
@@ -27,18 +31,49 @@ open class CoderTemplateService(
         logger.info("Fetching Coder templates from Coder server: ${properties.coder.baseUrl}")
 
         try {
-            val url = "${properties.coder.baseUrl}/api/v2/templates"
-            val headers = createAuthHeaders()
-            val entity = HttpEntity<String>(headers)
-            val typeReference = object : ParameterizedTypeReference<List<CoderTemplateApiResponse>>() {}
-
-            val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
-            val apiTemplates = response.body ?: emptyList()
-
-            logger.info("Successfully fetched {} Coder templates", apiTemplates.size)
-            return apiTemplates.map { it.toDto() }
+            return tryFetchTemplates()
+        } catch (e: HttpClientErrorException) {
+            if (e.statusCode.value() == 401) {
+                logger.warn("Authentication failed, attempting to refresh token")
+                return tryFetchTemplatesWithRefresh()
+            } else {
+                logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
+                return getMockCoderTemplates()
+            }
         } catch (e: Exception) {
             logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
+            return getMockCoderTemplates()
+        }
+    }
+
+    /**
+     * Attempts to fetch templates with current authentication.
+     */
+    private fun tryFetchTemplates(): List<CoderTemplateDto> {
+        val url = "${properties.coder.baseUrl}/api/v2/templates"
+        val headers = createAuthHeaders()
+        val entity = HttpEntity<String>(headers)
+        val typeReference = object : ParameterizedTypeReference<List<CoderTemplateApiResponse>>() {}
+
+        val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
+        val apiTemplates = response.body ?: emptyList()
+
+        logger.info("Successfully fetched {} Coder templates", apiTemplates.size)
+        return apiTemplates.map { it.toDto() }
+    }
+
+    /**
+     * Attempts to refresh authentication and fetch templates again.
+     */
+    private fun tryFetchTemplatesWithRefresh(): List<CoderTemplateDto> {
+        try {
+            refreshAuthToken()
+            return tryFetchTemplates()
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to refresh authentication or fetch templates after refresh, falling back to mock data",
+                e
+            )
             return getMockCoderTemplates()
         }
     }
@@ -57,11 +92,53 @@ open class CoderTemplateService(
      */
     private fun createAuthHeaders(): HttpHeaders {
         val headers = HttpHeaders()
-        properties.coder.token?.let { token ->
-            headers.set("Coder-Session-Token", token)
+        val token = cachedToken ?: properties.coder.token
+        token?.let {
+            headers.set("Coder-Session-Token", it)
         }
         headers.set("Accept", "application/json")
         return headers
+    }
+
+    /**
+     * Refreshes the authentication token by making a login request to Coder.
+     */
+    private fun refreshAuthToken() {
+        logger.info("Attempting to refresh Coder authentication token")
+
+        try {
+            val loginUrl = "${properties.coder.baseUrl}/api/v2/users/login"
+            val loginHeaders = HttpHeaders()
+            loginHeaders.set("Content-Type", "application/json")
+            loginHeaders.set("Accept", "application/json")
+
+            // Use stored credentials if available
+            val username = properties.coder.username ?: throw IllegalStateException(
+                "No username configured for Coder authentication"
+            )
+            val password = properties.coder.password ?: throw IllegalStateException(
+                "No password configured for Coder authentication"
+            )
+
+            val loginRequest = mapOf(
+                "email" to username,
+                "password" to password
+            )
+
+            val loginEntity = HttpEntity(loginRequest, loginHeaders)
+            val loginResponse = restTemplate.exchange(loginUrl, HttpMethod.POST, loginEntity, Map::class.java)
+
+            // Extract session token from response
+            val responseBody = loginResponse.body as? Map<String, Any>
+            val sessionToken = responseBody?.get("session_token") as? String
+                ?: throw IllegalStateException("No session token received from login response")
+
+            cachedToken = sessionToken
+            logger.info("Successfully refreshed Coder authentication token")
+        } catch (e: Exception) {
+            logger.error("Failed to refresh Coder authentication token", e)
+            throw e
+        }
     }
 
     /**
