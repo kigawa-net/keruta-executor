@@ -25,9 +25,7 @@ class LogStreamingControllerTest {
         // Given
         val workspaceId = "workspace123"
         val mockEmitter = mockk<SseEmitter>()
-        every { 
-            logStreamingService.startLogStream(any(), workspaceId, null) 
-        } returns mockEmitter
+        every { logStreamingService.startLogStream(any(), workspaceId, null) } returns mockEmitter
 
         // When
         val result = logStreamingController.streamWorkspaceLogs(workspaceId, false)
@@ -42,9 +40,7 @@ class LogStreamingControllerTest {
         // Given
         val taskId = "task123"
         val mockEmitter = mockk<SseEmitter>()
-        every { 
-            logStreamingService.startLogStream(any(), null, taskId) 
-        } returns mockEmitter
+        every { logStreamingService.startLogStream(any(), null, taskId) } returns mockEmitter
 
         // When
         val result = logStreamingController.streamTaskLogs(taskId, false)

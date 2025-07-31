@@ -19,7 +19,7 @@ class CoderTemplateServiceTest {
     fun setUp() {
         restTemplate = mockk(relaxed = true)
         properties = mockk(relaxed = true)
-        
+
         val coderProperties = mockk<net.kigawa.keruta.executor.config.CoderProperties>(relaxed = true)
         every { properties.coder } returns coderProperties
         every { coderProperties.baseUrl } returns "http://coder.example.com"
