@@ -3,7 +3,15 @@ package net.kigawa.keruta.executor.controller
 import net.kigawa.keruta.executor.service.LogStreamingService
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.CrossOrigin
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.UUID
 
@@ -26,9 +34,14 @@ open class LogStreamingController(
         @PathVariable workspaceId: String,
         @RequestParam(defaultValue = "false") follow: Boolean
     ): SseEmitter {
-        val streamId = "workspace-${workspaceId}-${UUID.randomUUID()}"
-        logger.info("Starting workspace log stream: workspaceId={} streamId={} follow={}", workspaceId, streamId, follow)
-        
+        val streamId = "workspace-$workspaceId-${UUID.randomUUID()}"
+        logger.info(
+            "Starting workspace log stream: workspaceId={} streamId={} follow={}",
+            workspaceId,
+            streamId,
+            follow
+        )
+
         return logStreamingService.startLogStream(streamId, workspaceId, null)
     }
 
@@ -40,9 +53,14 @@ open class LogStreamingController(
         @PathVariable taskId: String,
         @RequestParam(defaultValue = "false") follow: Boolean
     ): SseEmitter {
-        val streamId = "task-${taskId}-${UUID.randomUUID()}"
-        logger.info("Starting task log stream: taskId={} streamId={} follow={}", taskId, streamId, follow)
-        
+        val streamId = "task-$taskId-${UUID.randomUUID()}"
+        logger.info(
+            "Starting task log stream: taskId={} streamId={} follow={}",
+            taskId,
+            streamId,
+            follow
+        )
+
         return logStreamingService.startLogStream(streamId, null, taskId)
     }
 
@@ -54,16 +72,20 @@ open class LogStreamingController(
         @RequestBody request: CommandStreamRequest
     ): SseEmitter {
         val streamId = "command-${UUID.randomUUID()}"
-        logger.info("Starting command stream: command={} streamId={}", request.command, streamId)
-        
+        logger.info(
+            "Starting command stream: command={} streamId={}",
+            request.command,
+            streamId
+        )
+
         val emitter = SseEmitter()
         logStreamingService.executeCommandWithLogStream(
-            streamId, 
-            request.command, 
-            request.workingDirectory, 
+            streamId,
+            request.command,
+            request.workingDirectory,
             emitter
         )
-        
+
         return emitter
     }
 
