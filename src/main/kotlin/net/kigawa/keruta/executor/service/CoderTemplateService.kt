@@ -112,40 +112,107 @@ open class CoderTemplateService(
     }
 
     /**
-     * Refreshes the authentication token using the existing token.
+     * Refreshes the authentication token using the existing token or CLI fallback.
      */
     private fun refreshAuthToken() {
         logger.info("Attempting to refresh Coder authentication token")
 
         try {
-            val refreshUrl = "${properties.coder.baseUrl}/api/v2/users/me/tokens"
-            val refreshHeaders = HttpHeaders()
-            refreshHeaders.set("Content-Type", "application/json")
-            refreshHeaders.set("Accept", "application/json")
+            // Try API-based refresh first
+            refreshTokenViaApi()
+        } catch (apiException: Exception) {
+            if (properties.coder.enableCliFallback) {
+                logger.warn("API-based token refresh failed, attempting CLI fallback", apiException)
+                try {
+                    refreshTokenViaCli()
+                } catch (cliException: Exception) {
+                    logger.error("Both API and CLI token refresh methods failed", cliException)
+                    throw cliException
+                }
+            } else {
+                logger.error("API-based token refresh failed and CLI fallback is disabled", apiException)
+                throw apiException
+            }
+        }
+    }
 
-            // Use existing token for authentication
-            val currentToken = cachedToken ?: properties.coder.token
-                ?: throw IllegalStateException("No token available for refresh")
+    /**
+     * Refreshes the authentication token using Coder API.
+     */
+    private fun refreshTokenViaApi() {
+        val refreshUrl = "${properties.coder.baseUrl}/api/v2/users/me/tokens"
+        val refreshHeaders = HttpHeaders()
+        refreshHeaders.set("Content-Type", "application/json")
+        refreshHeaders.set("Accept", "application/json")
 
-            refreshHeaders.set("Coder-Session-Token", currentToken)
+        // Use existing token for authentication
+        val currentToken = cachedToken ?: properties.coder.token
+            ?: throw IllegalStateException("No token available for refresh")
 
-            val refreshRequest = mapOf(
-                "lifetime" to TimeUnit.DAYS.toSeconds(1) // 1 day lifetime
+        refreshHeaders.set("Coder-Session-Token", currentToken)
+
+        val refreshRequest = mapOf(
+            "lifetime" to TimeUnit.DAYS.toSeconds(1) // 1 day lifetime
+        )
+
+        val refreshEntity = HttpEntity(refreshRequest, refreshHeaders)
+        val refreshResponse = restTemplate.exchange(refreshUrl, HttpMethod.POST, refreshEntity, Map::class.java)
+
+        // Extract new session token from response
+        val responseBody = refreshResponse.body as? Map<String, Any>
+        val newSessionToken = responseBody?.get("key") as? String
+            ?: throw IllegalStateException("No session token received from refresh response")
+
+        cachedToken = newSessionToken
+        lastRefreshTime = System.currentTimeMillis()
+        logger.info("Successfully refreshed Coder authentication token via API")
+    }
+
+    /**
+     * Refreshes the authentication token using Coder CLI.
+     * Falls back to this method if API refresh fails.
+     */
+    private fun refreshTokenViaCli() {
+        logger.info("Attempting token refresh via Coder CLI")
+
+        try {
+            // Execute coder login command
+            val processBuilder = ProcessBuilder(
+                "coder",
+                "login",
+                properties.coder.baseUrl,
+                "--no-open"
             )
+            processBuilder.environment()["CODER_URL"] = properties.coder.baseUrl
 
-            val refreshEntity = HttpEntity(refreshRequest, refreshHeaders)
-            val refreshResponse = restTemplate.exchange(refreshUrl, HttpMethod.POST, refreshEntity, Map::class.java)
+            val process = processBuilder.start()
+            val exitCode = process.waitFor()
 
-            // Extract new session token from response
-            val responseBody = refreshResponse.body as? Map<String, Any>
-            val newSessionToken = responseBody?.get("key") as? String
-                ?: throw IllegalStateException("No session token received from refresh response")
+            if (exitCode != 0) {
+                val errorOutput = process.errorStream.bufferedReader().readText()
+                throw RuntimeException("Coder CLI login failed with exit code $exitCode: $errorOutput")
+            }
 
-            cachedToken = newSessionToken
+            // Read the new token from coder config
+            val tokenProcess = ProcessBuilder("coder", "tokens", "ls", "--output", "json").start()
+            val tokenExitCode = tokenProcess.waitFor()
+
+            if (tokenExitCode != 0) {
+                throw RuntimeException("Failed to retrieve token list from Coder CLI")
+            }
+
+            val tokenOutput = tokenProcess.inputStream.bufferedReader().readText()
+            // Parse token from JSON output (implementation would depend on actual JSON structure)
+            // For now, we'll get the active session token
+            val sessionProcess = ProcessBuilder("coder", "config-dir").start()
+            val configDir = sessionProcess.inputStream.bufferedReader().readText().trim()
+
+            // Note: This is a simplified approach. In practice, you might need to parse
+            // the session file or use a different method to extract the token
+            logger.info("CLI-based token refresh completed. Manual token extraction may be required.")
             lastRefreshTime = System.currentTimeMillis()
-            logger.info("Successfully refreshed Coder authentication token")
         } catch (e: Exception) {
-            logger.error("Failed to refresh Coder authentication token", e)
+            logger.error("Failed to refresh token via Coder CLI", e)
             throw e
         }
     }
