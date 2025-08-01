@@ -42,12 +42,12 @@ open class CoderTemplateService(
                 logger.warn("Authentication failed, attempting to refresh token")
                 return tryFetchTemplatesWithRefresh()
             } else {
-                logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
-                return getMockCoderTemplates()
+                logger.error("Failed to fetch Coder templates from API", e)
+                throw e
             }
         } catch (e: Exception) {
-            logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
-            return getMockCoderTemplates()
+            logger.error("Failed to fetch Coder templates from API", e)
+            throw e
         }
     }
 
@@ -76,16 +76,13 @@ open class CoderTemplateService(
                 logger.error(
                     "No Coder token available for refresh. Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
                 )
-                return getMockCoderTemplates()
+                throw IllegalStateException("No Coder token available for refresh")
             }
             refreshAuthToken()
             return tryFetchTemplates()
         } catch (e: Exception) {
-            logger.error(
-                "Failed to refresh authentication or fetch templates after refresh, falling back to mock data",
-                e
-            )
-            return getMockCoderTemplates()
+            logger.error("Failed to refresh authentication or fetch templates after refresh", e)
+            throw e
         }
     }
 
@@ -112,105 +109,64 @@ open class CoderTemplateService(
     }
 
     /**
-     * Refreshes the authentication token using the existing token or CLI fallback.
+     * Refreshes the authentication token using CLI.
      */
     private fun refreshAuthToken() {
-        logger.info("Attempting to refresh Coder authentication token")
+        logger.info("Attempting to refresh Coder authentication token using CLI")
 
         try {
-            // Try API-based refresh first
-            refreshTokenViaApi()
-        } catch (apiException: Exception) {
-            if (properties.coder.enableCliFallback) {
-                logger.warn("API-based token refresh failed, attempting CLI fallback", apiException)
-                try {
-                    refreshTokenViaCli()
-                } catch (cliException: Exception) {
-                    logger.error("Both API and CLI token refresh methods failed", cliException)
-                    throw cliException
-                }
-            } else {
-                logger.error("API-based token refresh failed and CLI fallback is disabled", apiException)
-                throw apiException
-            }
+            refreshTokenViaCli()
+        } catch (cliException: Exception) {
+            logger.error("CLI token refresh failed", cliException)
+            throw cliException
         }
     }
 
     /**
-     * Refreshes the authentication token using Coder API.
-     */
-    private fun refreshTokenViaApi() {
-        val refreshUrl = "${properties.coder.baseUrl}/api/v2/users/me/tokens"
-        val refreshHeaders = HttpHeaders()
-        refreshHeaders.set("Content-Type", "application/json")
-        refreshHeaders.set("Accept", "application/json")
-
-        // Use existing token for authentication
-        val currentToken = cachedToken ?: properties.coder.token
-            ?: throw IllegalStateException("No token available for refresh")
-
-        refreshHeaders.set("Coder-Session-Token", currentToken)
-
-        val refreshRequest = mapOf(
-            "lifetime" to TimeUnit.DAYS.toSeconds(1) // 1 day lifetime
-        )
-
-        val refreshEntity = HttpEntity(refreshRequest, refreshHeaders)
-        val refreshResponse = restTemplate.exchange(refreshUrl, HttpMethod.POST, refreshEntity, Map::class.java)
-
-        // Extract new session token from response
-        val responseBody = refreshResponse.body as? Map<String, Any>
-        val newSessionToken = responseBody?.get("key") as? String
-            ?: throw IllegalStateException("No session token received from refresh response")
-
-        cachedToken = newSessionToken
-        lastRefreshTime = System.currentTimeMillis()
-        logger.info("Successfully refreshed Coder authentication token via API")
-    }
-
-    /**
      * Refreshes the authentication token using Coder CLI.
-     * Falls back to this method if API refresh fails.
      */
     private fun refreshTokenViaCli() {
         logger.info("Attempting token refresh via Coder CLI")
 
         try {
-            // Execute coder login command
-            val processBuilder = ProcessBuilder(
+            // Check if Coder CLI is available
+            val versionCheck = ProcessBuilder("coder", "version").start()
+            val versionExitCode = versionCheck.waitFor()
+            if (versionExitCode != 0) {
+                throw RuntimeException("Coder CLI is not available or not installed")
+            }
+
+            // Logout first to clear any existing session
+            logger.info("Logging out of existing Coder session")
+            val logoutProcess = ProcessBuilder("coder", "logout").start()
+            logoutProcess.waitFor() // Don't fail if logout fails
+
+            // Generate a new API token using CLI
+            logger.info("Creating new API token via Coder CLI")
+            val tokenCreateProcess = ProcessBuilder(
                 "coder",
-                "login",
-                properties.coder.baseUrl,
-                "--no-open"
-            )
-            processBuilder.environment()["CODER_URL"] = properties.coder.baseUrl
+                "tokens",
+                "create",
+                "--lifetime",
+                "24h",
+                "--scope",
+                "all"
+            ).start()
 
-            val process = processBuilder.start()
-            val exitCode = process.waitFor()
-
-            if (exitCode != 0) {
-                val errorOutput = process.errorStream.bufferedReader().readText()
-                throw RuntimeException("Coder CLI login failed with exit code $exitCode: $errorOutput")
-            }
-
-            // Read the new token from coder config
-            val tokenProcess = ProcessBuilder("coder", "tokens", "ls", "--output", "json").start()
-            val tokenExitCode = tokenProcess.waitFor()
-
+            val tokenExitCode = tokenCreateProcess.waitFor()
             if (tokenExitCode != 0) {
-                throw RuntimeException("Failed to retrieve token list from Coder CLI")
+                val errorOutput = tokenCreateProcess.errorStream.bufferedReader().readText()
+                throw RuntimeException("Failed to create new token via CLI: $errorOutput")
             }
 
-            val tokenOutput = tokenProcess.inputStream.bufferedReader().readText()
-            // Parse token from JSON output (implementation would depend on actual JSON structure)
-            // For now, we'll get the active session token
-            val sessionProcess = ProcessBuilder("coder", "config-dir").start()
-            val configDir = sessionProcess.inputStream.bufferedReader().readText().trim()
-
-            // Note: This is a simplified approach. In practice, you might need to parse
-            // the session file or use a different method to extract the token
-            logger.info("CLI-based token refresh completed. Manual token extraction may be required.")
-            lastRefreshTime = System.currentTimeMillis()
+            val newToken = tokenCreateProcess.inputStream.bufferedReader().readText().trim()
+            if (newToken.isNotEmpty() && newToken.length > 20) { // Basic validation
+                cachedToken = newToken
+                lastRefreshTime = System.currentTimeMillis()
+                logger.info("Successfully created new Coder token via CLI")
+            } else {
+                throw RuntimeException("Invalid token received from CLI: token appears to be empty or malformed")
+            }
         } catch (e: Exception) {
             logger.error("Failed to refresh token via Coder CLI", e)
             throw e
