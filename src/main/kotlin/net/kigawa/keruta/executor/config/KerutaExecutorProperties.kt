@@ -31,15 +31,5 @@ data class CoderProperties(
     /**
      * API token for authenticating with Coder server.
      */
-    val token: String? = null,
-
-    /**
-     * Username for authenticating with Coder server.
-     */
-    val username: String? = null,
-
-    /**
-     * Password for authenticating with Coder server.
-     */
-    val password: String? = null
+    val token: String? = null
 )

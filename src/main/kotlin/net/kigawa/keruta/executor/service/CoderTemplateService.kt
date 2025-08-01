@@ -6,10 +6,12 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
 
 /**
  * Service for communicating with Coder server to fetch templates.
@@ -23,6 +25,9 @@ open class CoderTemplateService(
 
     @Volatile
     private var cachedToken: String? = null
+
+    @Volatile
+    private var lastRefreshTime: Long = 0L
 
     /**
      * Fetches available Coder templates from the Coder server.
@@ -67,6 +72,12 @@ open class CoderTemplateService(
      */
     private fun tryFetchTemplatesWithRefresh(): List<CoderTemplateDto> {
         try {
+            if (properties.coder.token == null) {
+                logger.error(
+                    "No Coder token available for refresh. Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
+                )
+                return getMockCoderTemplates()
+            }
             refreshAuthToken()
             return tryFetchTemplates()
         } catch (e: Exception) {
@@ -101,44 +112,70 @@ open class CoderTemplateService(
     }
 
     /**
-     * Refreshes the authentication token by making a login request to Coder.
+     * Refreshes the authentication token using the existing token.
      */
     private fun refreshAuthToken() {
         logger.info("Attempting to refresh Coder authentication token")
 
         try {
-            val loginUrl = "${properties.coder.baseUrl}/api/v2/users/login"
-            val loginHeaders = HttpHeaders()
-            loginHeaders.set("Content-Type", "application/json")
-            loginHeaders.set("Accept", "application/json")
+            val refreshUrl = "${properties.coder.baseUrl}/api/v2/users/me/tokens"
+            val refreshHeaders = HttpHeaders()
+            refreshHeaders.set("Content-Type", "application/json")
+            refreshHeaders.set("Accept", "application/json")
 
-            // Use stored credentials if available
-            val username = properties.coder.username ?: throw IllegalStateException(
-                "No username configured for Coder authentication"
-            )
-            val password = properties.coder.password ?: throw IllegalStateException(
-                "No password configured for Coder authentication"
-            )
+            // Use existing token for authentication
+            val currentToken = cachedToken ?: properties.coder.token
+                ?: throw IllegalStateException("No token available for refresh")
 
-            val loginRequest = mapOf(
-                "email" to username,
-                "password" to password
+            refreshHeaders.set("Coder-Session-Token", currentToken)
+
+            val refreshRequest = mapOf(
+                "lifetime" to TimeUnit.DAYS.toSeconds(1) // 1 day lifetime
             )
 
-            val loginEntity = HttpEntity(loginRequest, loginHeaders)
-            val loginResponse = restTemplate.exchange(loginUrl, HttpMethod.POST, loginEntity, Map::class.java)
+            val refreshEntity = HttpEntity(refreshRequest, refreshHeaders)
+            val refreshResponse = restTemplate.exchange(refreshUrl, HttpMethod.POST, refreshEntity, Map::class.java)
 
-            // Extract session token from response
-            val responseBody = loginResponse.body as? Map<String, Any>
-            val sessionToken = responseBody?.get("session_token") as? String
-                ?: throw IllegalStateException("No session token received from login response")
+            // Extract new session token from response
+            val responseBody = refreshResponse.body as? Map<String, Any>
+            val newSessionToken = responseBody?.get("key") as? String
+                ?: throw IllegalStateException("No session token received from refresh response")
 
-            cachedToken = sessionToken
+            cachedToken = newSessionToken
+            lastRefreshTime = System.currentTimeMillis()
             logger.info("Successfully refreshed Coder authentication token")
         } catch (e: Exception) {
             logger.error("Failed to refresh Coder authentication token", e)
             throw e
         }
+    }
+
+    /**
+     * Scheduled task to refresh the authentication token daily.
+     */
+    @Scheduled(fixedRate = 86400000) // 24 hours in milliseconds
+    fun scheduledTokenRefresh() {
+        try {
+            if (properties.coder.token != null) {
+                logger.info("Performing scheduled token refresh")
+                refreshAuthToken()
+            } else {
+                logger.warn(
+                    "No Coder token configured - scheduled refresh skipped. " +
+                        "Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("Scheduled token refresh failed", e)
+        }
+    }
+
+    /**
+     * Checks if the token needs to be refreshed (older than 23 hours).
+     */
+    private fun shouldRefreshToken(): Boolean {
+        val twentyThreeHours = TimeUnit.HOURS.toMillis(23)
+        return System.currentTimeMillis() - lastRefreshTime > twentyThreeHours
     }
 
     /**
