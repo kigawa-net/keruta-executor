@@ -42,12 +42,12 @@ open class CoderTemplateService(
                 logger.warn("Authentication failed, attempting to refresh token")
                 return tryFetchTemplatesWithRefresh()
             } else {
-                logger.error("Failed to fetch Coder templates from API", e)
-                throw e
+                logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
+                return getMockCoderTemplates()
             }
         } catch (e: Exception) {
-            logger.error("Failed to fetch Coder templates from API", e)
-            throw e
+            logger.error("Failed to fetch Coder templates from API, falling back to mock data", e)
+            return getMockCoderTemplates()
         }
     }
 
@@ -76,13 +76,16 @@ open class CoderTemplateService(
                 logger.error(
                     "No Coder token available for refresh. Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
                 )
-                throw IllegalStateException("No Coder token available for refresh")
+                return getMockCoderTemplates()
             }
             refreshAuthToken()
             return tryFetchTemplates()
         } catch (e: Exception) {
-            logger.error("Failed to refresh authentication or fetch templates after refresh", e)
-            throw e
+            logger.error(
+                "Failed to refresh authentication or fetch templates after refresh, falling back to mock data",
+                e
+            )
+            return getMockCoderTemplates()
         }
     }
 
