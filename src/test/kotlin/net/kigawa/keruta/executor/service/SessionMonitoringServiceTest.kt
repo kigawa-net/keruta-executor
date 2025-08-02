@@ -12,15 +12,24 @@ class SessionMonitoringServiceTest {
 
     private lateinit var restTemplate: RestTemplate
     private lateinit var properties: KerutaExecutorProperties
+    private lateinit var coderWorkspaceService: CoderWorkspaceService
+    private lateinit var coderTemplateService: CoderTemplateService
     private lateinit var sessionMonitoringService: SessionMonitoringService
 
     @BeforeEach
     fun setUp() {
         restTemplate = mockk(relaxed = true)
         properties = mockk(relaxed = true)
+        coderWorkspaceService = mockk(relaxed = true)
+        coderTemplateService = mockk(relaxed = true)
         every { properties.apiBaseUrl } returns "http://localhost:8080"
 
-        sessionMonitoringService = SessionMonitoringService(restTemplate, properties)
+        sessionMonitoringService = SessionMonitoringService(
+            restTemplate,
+            properties,
+            coderWorkspaceService,
+            coderTemplateService
+        )
     }
 
     @Test

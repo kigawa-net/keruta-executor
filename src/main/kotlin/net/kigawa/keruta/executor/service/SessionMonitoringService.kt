@@ -24,7 +24,9 @@ import kotlin.random.Random
 @Service
 open class SessionMonitoringService(
     private val restTemplate: RestTemplate,
-    private val properties: KerutaExecutorProperties
+    private val properties: KerutaExecutorProperties,
+    private val coderWorkspaceService: CoderWorkspaceService,
+    private val coderTemplateService: CoderTemplateService
 ) {
     private val logger = LoggerFactory.getLogger(SessionMonitoringService::class.java)
 
@@ -64,28 +66,28 @@ open class SessionMonitoringService(
                         continue
                     }
 
-                    // Check if workspace already exists for this session
-                    val workspaces = getWorkspacesBySessionIdWithRetry(session.id)
+                    // Check if workspace already exists for this session in Coder
+                    val existingWorkspaces = coderWorkspaceService.getWorkspacesBySessionId(session.id)
 
-                    if (workspaces.isEmpty()) {
-                        logger.warn(
-                            "No workspace found for session: sessionId={}. This should not happen in 1:1 model.",
+                    if (existingWorkspaces.isEmpty()) {
+                        logger.info(
+                            "No Coder workspace found for session: sessionId={}. Creating workspace automatically.",
                             session.id
                         )
-                        // For backward compatibility or edge cases, try to create workspace
-                        // But handle the case where auto-creation already happened
                         try {
-                            createWorkspaceForSessionWithRetry(session)
+                            createCoderWorkspaceForSession(session)
+                            logger.info("Successfully created Coder workspace for session: sessionId={}", session.id)
                         } catch (e: Exception) {
-                            logger.debug("Workspace creation failed (expected in 1:1 model): sessionId={}", session.id)
+                            logger.error("Failed to create Coder workspace for session: sessionId={}", session.id, e)
+                            // Continue processing - don't fail the entire session monitoring
                         }
-                        // Always try to update status regardless of workspace creation result
+                        // Update session status to ACTIVE after workspace creation attempt
                         updateSessionStatusWithRetry(session.id, "ACTIVE")
                     } else {
                         logger.info(
-                            "Workspace exists for session: sessionId={} workspaceId={}",
+                            "Coder workspace exists for session: sessionId={} workspaceCount={}",
                             session.id,
-                            workspaces.first().id
+                            existingWorkspaces.size
                         )
                         // Update session status to ACTIVE if workspace exists
                         updateSessionStatusWithRetry(session.id, "ACTIVE")
@@ -126,42 +128,57 @@ open class SessionMonitoringService(
                         continue
                     }
 
-                    // Get workspaces for this session
-                    val workspaces = getWorkspacesBySessionIdWithRetry(session.id)
+                    // Get Coder workspaces for this session
+                    val coderWorkspaces = coderWorkspaceService.getWorkspacesBySessionId(session.id)
 
-                    for (workspace in workspaces) {
-                        // Only start workspace if it's in STOPPED or PENDING state
-                        when (workspace.status) {
-                            "STOPPED", "PENDING" -> {
-                                logger.info(
-                                    "Starting workspace for active session: sessionId={} workspaceId={} status={}",
-                                    session.id,
-                                    workspace.id,
-                                    workspace.status
-                                )
-                                startWorkspaceWithRetry(workspace.id)
-                            }
-                            "STARTING" -> {
-                                logger.debug(
-                                    "Workspace is already starting: sessionId={} workspaceId={}",
-                                    session.id,
-                                    workspace.id
-                                )
-                            }
-                            "RUNNING" -> {
-                                logger.debug(
-                                    "Workspace is already running: sessionId={} workspaceId={}",
-                                    session.id,
-                                    workspace.id
-                                )
-                            }
-                            else -> {
-                                logger.debug(
-                                    "Workspace in non-startable status: sessionId={} workspaceId={} status={}",
-                                    session.id,
-                                    workspace.id,
-                                    workspace.status
-                                )
+                    if (coderWorkspaces.isEmpty()) {
+                        logger.warn(
+                            "No Coder workspace found for active session: sessionId={}. Creating workspace.",
+                            session.id
+                        )
+                        try {
+                            createCoderWorkspaceForSession(session)
+                        } catch (e: Exception) {
+                            logger.error("Failed to create workspace for active session: sessionId={}", session.id, e)
+                        }
+                    } else {
+                        for (workspace in coderWorkspaces) {
+                            // Only start workspace if it's in STOPPED or similar state
+                            when (workspace.status.lowercase()) {
+                                "stopped", "pending", "failed" -> {
+                                    logger.info(
+                                        "Starting Coder workspace: sessionId={} workspaceId={} status={}",
+                                        session.id,
+                                        workspace.id,
+                                        workspace.status
+                                    )
+                                    try {
+                                        coderWorkspaceService.startWorkspace(workspace.id)
+                                    } catch (e: Exception) {
+                                        logger.error(
+                                            "Failed to start Coder workspace: sessionId={} workspaceId={}",
+                                            session.id,
+                                            workspace.id,
+                                            e
+                                        )
+                                    }
+                                }
+                                "starting", "running" -> {
+                                    logger.debug(
+                                        "Workspace running/starting: sessionId={} workspaceId={} status={}",
+                                        session.id,
+                                        workspace.id,
+                                        workspace.status
+                                    )
+                                }
+                                else -> {
+                                    logger.debug(
+                                        "Workspace non-startable: sessionId={} workspaceId={} status={}",
+                                        session.id,
+                                        workspace.id,
+                                        workspace.status
+                                    )
+                                }
                             }
                         }
                     }
@@ -221,6 +238,119 @@ open class SessionMonitoringService(
         executeWithRetry("createWorkspaceForSession", 2) {
             createWorkspaceForSession(session)
         }
+    }
+
+    /**
+     * Creates a Coder workspace directly for a session.
+     */
+    private fun createCoderWorkspaceForSession(session: SessionDto) {
+        logger.info("Creating Coder workspace for session: sessionId={} name={}", session.id, session.name)
+
+        try {
+            // Get available templates from Coder
+            val templates = coderTemplateService.getCoderTemplates()
+            val selectedTemplate = selectBestTemplate(templates, session)
+
+            if (selectedTemplate == null) {
+                logger.error("No suitable template found for session: sessionId={}", session.id)
+                return
+            }
+
+            logger.info(
+                "Using template for workspace creation: sessionId={} templateId={} templateName={}",
+                session.id,
+                selectedTemplate.id,
+                selectedTemplate.name
+            )
+
+            // Create workspace name with session ID for easy identification
+            val workspaceName = generateWorkspaceName(session)
+
+            val createRequest = CreateCoderWorkspaceRequest(
+                name = workspaceName,
+                templateId = selectedTemplate.id,
+                richParameterValues = emptyList()
+            )
+
+            val createdWorkspace = coderWorkspaceService.createWorkspace(createRequest)
+            logger.info(
+                "Successfully created Coder workspace: sessionId={} workspaceId={} workspaceName={}",
+                session.id,
+                createdWorkspace.id,
+                createdWorkspace.name
+            )
+
+            // Start the workspace immediately for active sessions
+            try {
+                coderWorkspaceService.startWorkspace(createdWorkspace.id)
+                logger.info(
+                    "Started newly created workspace: sessionId={} workspaceId={}",
+                    session.id,
+                    createdWorkspace.id
+                )
+            } catch (e: Exception) {
+                logger.warn(
+                    "Failed to start newly created workspace (will retry later): sessionId={} workspaceId={}",
+                    session.id,
+                    createdWorkspace.id,
+                    e
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to create Coder workspace for session: sessionId={}", session.id, e)
+            throw e
+        }
+    }
+
+    /**
+     * Selects the best template for a session based on tags and preferences.
+     */
+    private fun selectBestTemplate(templates: List<CoderTemplateDto>, session: SessionDto): CoderTemplateDto? {
+        if (templates.isEmpty()) {
+            logger.warn("No templates available for workspace creation")
+            return null
+        }
+
+        // First, try to find a template that matches session tags
+        for (tag in session.tags) {
+            val matchingTemplate = templates.find { template ->
+                template.name.contains(tag, ignoreCase = true) ||
+                    template.displayName.contains(tag, ignoreCase = true) ||
+                    template.description.contains(tag, ignoreCase = true)
+            }
+            if (matchingTemplate != null) {
+                logger.info("Found template matching tag '{}': templateId={}", tag, matchingTemplate.id)
+                return matchingTemplate
+            }
+        }
+
+        // Look for keruta-specific template
+        val kerutaTemplate = templates.find { it.name.contains("keruta", ignoreCase = true) }
+        if (kerutaTemplate != null) {
+            logger.info("Using Keruta-optimized template: templateId={}", kerutaTemplate.id)
+            return kerutaTemplate
+        }
+
+        // Fallback to first available template
+        val defaultTemplate = templates.firstOrNull()
+        if (defaultTemplate != null) {
+            logger.info("Using first available template as fallback: templateId={}", defaultTemplate.id)
+        }
+        return defaultTemplate
+    }
+
+    /**
+     * Generates a workspace name for the session.
+     */
+    private fun generateWorkspaceName(session: SessionDto): String {
+        // Use session name but ensure it's Coder-compatible
+        val sanitizedSessionName = session.name
+            .replace("[^a-zA-Z0-9-_]".toRegex(), "-")
+            .replace("-+".toRegex(), "-")
+            .trim('-')
+            .take(30) // Limit length
+
+        return "session-${session.id.take(8)}-$sanitizedSessionName"
     }
 
     /**
