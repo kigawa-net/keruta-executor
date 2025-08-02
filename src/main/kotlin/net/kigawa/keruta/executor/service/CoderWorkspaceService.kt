@@ -236,13 +236,53 @@ open class CoderWorkspaceService(
         val url = "${properties.coder.baseUrl}/api/v2/workspaces"
         val headers = createAuthHeaders()
         val entity = HttpEntity<String>(headers)
-        val typeReference = object : ParameterizedTypeReference<List<CoderWorkspaceApiResponse>>() {}
 
-        val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
-        val apiWorkspaces = response.body ?: emptyList()
-
-        logger.info("Successfully fetched {} workspaces", apiWorkspaces.size)
-        return apiWorkspaces.map { it.toDto() }
+        try {
+            // First try to get as a list (standard format)
+            val typeReference = object : ParameterizedTypeReference<List<CoderWorkspaceApiResponse>>() {}
+            val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
+            val apiWorkspaces = response.body ?: emptyList()
+            logger.info("Successfully fetched {} workspaces", apiWorkspaces.size)
+            return apiWorkspaces.map { it.toDto() }
+        } catch (e: Exception) {
+            logger.warn("Failed to parse as list, trying paginated format", e)
+            // Try to get as a paginated response (Coder v2 standard format)
+            try {
+                val paginatedResponse = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    CoderPaginatedWorkspacesResponse::class.java
+                )
+                val apiWorkspaces = paginatedResponse.body?.workspaces ?: emptyList()
+                logger.info("Successfully fetched {} workspaces from paginated response", apiWorkspaces.size)
+                return apiWorkspaces.map { it.toDto() }
+            } catch (e2: Exception) {
+                logger.warn("Failed to parse as paginated, trying wrapped object", e2)
+                // Try to get as a wrapped object (some Coder versions wrap in { "workspaces": [...] })
+                try {
+                    val wrappedResponse = restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        entity,
+                        CoderWorkspacesWrapperResponse::class.java
+                    )
+                    val apiWorkspaces = wrappedResponse.body?.workspaces ?: emptyList()
+                    logger.info("Successfully fetched {} workspaces from wrapped response", apiWorkspaces.size)
+                    return apiWorkspaces.map { it.toDto() }
+                } catch (e3: Exception) {
+                    logger.error("Failed to parse workspaces response in all formats", e3)
+                    // Log the raw response for debugging
+                    try {
+                        val rawResponse = restTemplate.exchange(url, HttpMethod.GET, entity, String::class.java)
+                        logger.error("Raw Coder API response: {}", rawResponse.body)
+                    } catch (e4: Exception) {
+                        logger.error("Failed to get raw response", e4)
+                    }
+                    return emptyList()
+                }
+            }
+        }
     }
 
     private fun tryFetchWorkspacesWithRefresh(): List<CoderWorkspaceDto> {
@@ -402,4 +442,20 @@ data class LatestBuildApiResponse(
 
 data class ResourceApiResponse(
     val health: String?
+)
+
+/**
+ * Wrapper response for Coder API that returns workspaces in a wrapped format.
+ */
+data class CoderWorkspacesWrapperResponse(
+    val workspaces: List<CoderWorkspaceApiResponse>?
+)
+
+/**
+ * Paginated response for Coder API v2 (most common format).
+ */
+data class CoderPaginatedWorkspacesResponse(
+    val workspaces: List<CoderWorkspaceApiResponse>?,
+    val count: Int?,
+    val after_id: String?
 )
