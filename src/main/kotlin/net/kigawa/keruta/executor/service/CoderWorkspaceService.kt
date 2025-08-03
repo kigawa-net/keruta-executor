@@ -97,7 +97,8 @@ open class CoderWorkspaceService(
         logger.info("Creating workspace: {}", request.name)
 
         return try {
-            val url = "${properties.coder.baseUrl}/api/v2/workspaces"
+            // Coder API v2 workspace creation requires a specific endpoint with organization
+            val url = "${properties.coder.baseUrl}/api/v2/organizations/default/workspaces"
             val headers = createAuthHeaders()
             headers.set("Content-Type", "application/json")
 
@@ -107,16 +108,23 @@ open class CoderWorkspaceService(
                 "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
             )
 
+            logger.info("Sending workspace creation request to URL: {} with data: {}", url, createRequest)
+            
             val entity = HttpEntity(createRequest, headers)
             val response = restTemplate.exchange(url, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
             response.body?.toDto() ?: throw RuntimeException("Failed to create workspace - no response body")
         } catch (e: HttpClientErrorException) {
+            logger.error("HTTP error creating workspace: {} - Status: {}, Body: {}", 
+                request.name, e.statusCode, e.responseBodyAsString)
             if (e.statusCode.value() == 401) {
                 logger.warn("Authentication failed while creating workspace, attempting with refresh")
                 tryCreateWorkspaceWithRefresh(request)
+            } else if (e.statusCode.value() == 405) {
+                logger.error("Method not allowed - checking alternative endpoint")
+                // Try alternative endpoint without organization prefix
+                tryCreateWorkspaceAlternativeEndpoint(request)
             } else {
-                logger.error("Failed to create workspace: {}", request.name, e)
                 throw e
             }
         } catch (e: Exception) {
@@ -308,6 +316,34 @@ open class CoderWorkspaceService(
     private fun tryCreateWorkspaceWithRefresh(request: CreateCoderWorkspaceRequest): CoderWorkspaceDto {
         coderTemplateService.scheduledTokenRefresh() // Reuse token refresh logic
         return createWorkspace(request)
+    }
+
+    private fun tryCreateWorkspaceAlternativeEndpoint(request: CreateCoderWorkspaceRequest): CoderWorkspaceDto {
+        logger.info("Trying alternative endpoint for workspace creation: {}", request.name)
+        
+        return try {
+            // Try without organization prefix (older Coder versions)
+            val url = "${properties.coder.baseUrl}/api/v2/workspaces"
+            val headers = createAuthHeaders()
+            headers.set("Content-Type", "application/json")
+
+            val createRequest = mapOf(
+                "name" to request.name,
+                "template_id" to request.templateId,
+                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
+            )
+
+            logger.info("Sending workspace creation request to alternative URL: {} with data: {}", url, createRequest)
+            
+            val entity = HttpEntity(createRequest, headers)
+            val response = restTemplate.exchange(url, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
+
+            response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via alternative endpoint - no response body")
+        } catch (e: HttpClientErrorException) {
+            logger.error("Alternative endpoint also failed: {} - Status: {}, Body: {}", 
+                request.name, e.statusCode, e.responseBodyAsString)
+            throw e
+        }
     }
 
     private fun tryStartWorkspaceWithRefresh(id: String): CoderWorkspaceDto? {
