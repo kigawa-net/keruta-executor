@@ -110,14 +110,18 @@ open class CoderWorkspaceService(
             )
 
             logger.info("Sending workspace creation request to URL: {} with data: {}", url, createRequest)
-            
+
             val entity = HttpEntity(createRequest, headers)
             val response = restTemplate.exchange(url, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
             response.body?.toDto() ?: throw RuntimeException("Failed to create workspace - no response body")
         } catch (e: HttpClientErrorException) {
-            logger.error("HTTP error creating workspace: {} - Status: {}, Body: {}", 
-                request.name, e.statusCode, e.responseBodyAsString)
+            logger.error(
+                "HTTP error creating workspace: {} - Status: {}, Body: {}",
+                request.name,
+                e.statusCode,
+                e.responseBodyAsString
+            )
             if (e.statusCode.value() == 401) {
                 logger.warn("Authentication failed while creating workspace, attempting with refresh")
                 tryCreateWorkspaceWithRefresh(request)
@@ -321,7 +325,7 @@ open class CoderWorkspaceService(
 
     private fun tryCreateWorkspaceAlternativeEndpoint(request: CreateCoderWorkspaceRequest): CoderWorkspaceDto {
         logger.info("Trying alternative endpoints for workspace creation: {}", request.name)
-        
+
         // Try organization-based endpoint first
         try {
             val orgUrl = "${properties.coder.baseUrl}/api/v2/organizations/default/members/me/workspaces"
@@ -335,16 +339,21 @@ open class CoderWorkspaceService(
             )
 
             logger.info("Trying organization-based endpoint: {} with data: {}", orgUrl, createRequest)
-            
+
             val entity = HttpEntity(createRequest, headers)
             val response = restTemplate.exchange(orgUrl, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
-            return response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via organization endpoint - no response body")
+            return response.body?.toDto() ?: throw RuntimeException(
+                "Failed to create workspace via organization endpoint - no response body"
+            )
         } catch (e: HttpClientErrorException) {
-            logger.warn("Organization endpoint failed: {} - Status: {}, trying legacy endpoint", 
-                request.name, e.statusCode)
+            logger.warn(
+                "Organization endpoint failed: {} - Status: {}, trying legacy endpoint",
+                request.name,
+                e.statusCode
+            )
         }
-        
+
         // Try legacy endpoint as last resort
         return try {
             val legacyUrl = "${properties.coder.baseUrl}/api/v2/workspaces"
@@ -358,14 +367,25 @@ open class CoderWorkspaceService(
             )
 
             logger.info("Trying legacy endpoint: {} with data: {}", legacyUrl, createRequest)
-            
-            val entity = HttpEntity(createRequest, headers)
-            val response = restTemplate.exchange(legacyUrl, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
-            response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via legacy endpoint - no response body")
+            val entity = HttpEntity(createRequest, headers)
+            val response = restTemplate.exchange(
+                legacyUrl,
+                HttpMethod.POST,
+                entity,
+                CoderWorkspaceApiResponse::class.java
+            )
+
+            response.body?.toDto() ?: throw RuntimeException(
+                "Failed to create workspace via legacy endpoint - no response body"
+            )
         } catch (e: HttpClientErrorException) {
-            logger.error("All alternative endpoints failed: {} - Status: {}, Body: {}", 
-                request.name, e.statusCode, e.responseBodyAsString)
+            logger.error(
+                "All alternative endpoints failed: {} - Status: {}, Body: {}",
+                request.name,
+                e.statusCode,
+                e.responseBodyAsString
+            )
             throw e
         }
     }
