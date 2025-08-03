@@ -97,8 +97,9 @@ open class CoderWorkspaceService(
         logger.info("Creating workspace: {}", request.name)
 
         return try {
-            // Coder API v2 workspace creation requires a specific endpoint with organization
-            val url = "${properties.coder.baseUrl}/api/v2/organizations/default/workspaces"
+            // Use the correct Coder API v2 endpoint based on official documentation
+            // POST /users/{user}/workspaces (using "me" for current user)
+            val url = "${properties.coder.baseUrl}/api/v2/users/me/workspaces"
             val headers = createAuthHeaders()
             headers.set("Content-Type", "application/json")
 
@@ -120,9 +121,9 @@ open class CoderWorkspaceService(
             if (e.statusCode.value() == 401) {
                 logger.warn("Authentication failed while creating workspace, attempting with refresh")
                 tryCreateWorkspaceWithRefresh(request)
-            } else if (e.statusCode.value() == 405) {
-                logger.error("Method not allowed - checking alternative endpoint")
-                // Try alternative endpoint without organization prefix
+            } else if (e.statusCode.value() == 405 || e.statusCode.value() == 404) {
+                logger.error("Endpoint not found or method not allowed - trying alternative endpoint")
+                // Try alternative endpoint formats
                 tryCreateWorkspaceAlternativeEndpoint(request)
             } else {
                 throw e
@@ -319,11 +320,11 @@ open class CoderWorkspaceService(
     }
 
     private fun tryCreateWorkspaceAlternativeEndpoint(request: CreateCoderWorkspaceRequest): CoderWorkspaceDto {
-        logger.info("Trying alternative endpoint for workspace creation: {}", request.name)
+        logger.info("Trying alternative endpoints for workspace creation: {}", request.name)
         
-        return try {
-            // Try without organization prefix (older Coder versions)
-            val url = "${properties.coder.baseUrl}/api/v2/workspaces"
+        // Try organization-based endpoint first
+        try {
+            val orgUrl = "${properties.coder.baseUrl}/api/v2/organizations/default/members/me/workspaces"
             val headers = createAuthHeaders()
             headers.set("Content-Type", "application/json")
 
@@ -333,14 +334,37 @@ open class CoderWorkspaceService(
                 "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
             )
 
-            logger.info("Sending workspace creation request to alternative URL: {} with data: {}", url, createRequest)
+            logger.info("Trying organization-based endpoint: {} with data: {}", orgUrl, createRequest)
             
             val entity = HttpEntity(createRequest, headers)
-            val response = restTemplate.exchange(url, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
+            val response = restTemplate.exchange(orgUrl, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
-            response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via alternative endpoint - no response body")
+            return response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via organization endpoint - no response body")
         } catch (e: HttpClientErrorException) {
-            logger.error("Alternative endpoint also failed: {} - Status: {}, Body: {}", 
+            logger.warn("Organization endpoint failed: {} - Status: {}, trying legacy endpoint", 
+                request.name, e.statusCode)
+        }
+        
+        // Try legacy endpoint as last resort
+        return try {
+            val legacyUrl = "${properties.coder.baseUrl}/api/v2/workspaces"
+            val headers = createAuthHeaders()
+            headers.set("Content-Type", "application/json")
+
+            val createRequest = mapOf(
+                "name" to request.name,
+                "template_id" to request.templateId,
+                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
+            )
+
+            logger.info("Trying legacy endpoint: {} with data: {}", legacyUrl, createRequest)
+            
+            val entity = HttpEntity(createRequest, headers)
+            val response = restTemplate.exchange(legacyUrl, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
+
+            response.body?.toDto() ?: throw RuntimeException("Failed to create workspace via legacy endpoint - no response body")
+        } catch (e: HttpClientErrorException) {
+            logger.error("All alternative endpoints failed: {} - Status: {}, Body: {}", 
                 request.name, e.statusCode, e.responseBodyAsString)
             throw e
         }
