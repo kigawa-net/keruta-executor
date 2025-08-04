@@ -54,9 +54,12 @@ open class CoderWorkspaceService(
 
         // Get all workspaces and filter by session ID in the name or tags
         return getAllWorkspaces().filter { workspace ->
-            workspace.name.contains(sessionId) || workspace.templateName.contains("session-$sessionId") ||
-                // Check if workspace name follows the pattern: session-{sessionId}-{suffix}
-                workspace.name.startsWith("session-$sessionId")
+            // Match full UUID pattern: session-{full-uuid}-{suffix}
+            workspace.name.startsWith("session-$sessionId") ||
+                // Match partial ID pattern for backward compatibility: session-{first-8-chars}-{suffix}
+                (sessionId.length >= 8 && workspace.name.startsWith("session-${sessionId.take(8)}")) ||
+                // Legacy patterns
+                workspace.name.contains(sessionId) || workspace.templateName.contains("session-$sessionId")
         }
     }
 
