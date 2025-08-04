@@ -348,7 +348,6 @@ open class SessionMonitoringService(
             .replace("[^a-zA-Z0-9-_]".toRegex(), "-")
             .replace("-+".toRegex(), "-")
             .trim('-')
-            .take(20) // Reduced from 30 to accommodate full UUID (36 chars + "session-" prefix)
 
         // Use full session UUID instead of truncated version for better identification
         // Format: session-{36-char-uuid}-{20-char-session-name}
