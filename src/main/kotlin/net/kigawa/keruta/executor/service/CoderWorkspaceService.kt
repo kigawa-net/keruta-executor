@@ -55,7 +55,7 @@ open class CoderWorkspaceService(
         // Get all workspaces and filter by session ID in the name or tags
         return getAllWorkspaces().filter { workspace ->
             // Match full UUID pattern: session-{full-uuid}-{suffix}
-            workspace.name.startsWith("session-$sessionId")
+            workspace.name.startsWith(sessionId.replace("-".toRegex(), ""))
         }
     }
 
