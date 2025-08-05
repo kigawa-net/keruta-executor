@@ -20,7 +20,7 @@ import java.time.ZoneId
 open class CoderWorkspaceService(
     private val restTemplate: RestTemplate,
     private val properties: KerutaExecutorProperties,
-    private val coderTemplateService: CoderTemplateService,
+    private val coderTemplateService: CoderTemplateService
 ) {
     private val logger = LoggerFactory.getLogger(CoderWorkspaceService::class.java)
 
@@ -278,7 +278,7 @@ open class CoderWorkspaceService(
                 logger.warn("Failed to parse as wrapped object, trying direct list", e2)
                 // Last try: direct array format
                 try {
-                    val typeReference = object: ParameterizedTypeReference<List<CoderWorkspaceApiResponse>>() {}
+                    val typeReference = object : ParameterizedTypeReference<List<CoderWorkspaceApiResponse>>() {}
                     val response = restTemplate.exchange(url, HttpMethod.GET, entity, typeReference)
                     val apiWorkspaces = response.body ?: emptyList()
                     logger.info("Successfully fetched {} workspaces from direct list", apiWorkspaces.size)
@@ -450,7 +450,7 @@ data class CoderWorkspaceDto(
     val autoStop: Boolean,
     val lastUsedAt: LocalDateTime,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime,
+    val updatedAt: LocalDateTime
 )
 
 /**
@@ -459,7 +459,7 @@ data class CoderWorkspaceDto(
 data class CreateCoderWorkspaceRequest(
     val name: String,
     val templateId: String,
-    val richParameterValues: List<Any>? = null,
+    val richParameterValues: List<Any>? = null
 )
 
 /**
@@ -479,7 +479,7 @@ data class CoderWorkspaceApiResponse(
     val ttl_ms: Long?,
     val last_used_at: String?,
     val created_at: String?,
-    val updated_at: String?,
+    val updated_at: String?
 ) {
     fun toDto(): CoderWorkspaceDto {
         return CoderWorkspaceDto(
@@ -517,18 +517,18 @@ data class CoderWorkspaceApiResponse(
 
 data class LatestBuildApiResponse(
     val status: String?,
-    val resources: List<ResourceApiResponse>?,
+    val resources: List<ResourceApiResponse>?
 )
 
 data class ResourceApiResponse(
-    val health: String?,
+    val health: String?
 )
 
 /**
  * Wrapper response for Coder API that returns workspaces in a wrapped format.
  */
 data class CoderWorkspacesWrapperResponse(
-    val workspaces: List<CoderWorkspaceApiResponse>?,
+    val workspaces: List<CoderWorkspaceApiResponse>?
 )
 
 /**
@@ -537,5 +537,5 @@ data class CoderWorkspacesWrapperResponse(
 data class CoderPaginatedWorkspacesResponse(
     val workspaces: List<CoderWorkspaceApiResponse>?,
     val count: Int?,
-    val after_id: String?,
+    val after_id: String?
 )
