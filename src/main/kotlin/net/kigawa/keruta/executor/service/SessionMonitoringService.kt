@@ -26,7 +26,7 @@ open class SessionMonitoringService(
     private val restTemplate: RestTemplate,
     private val properties: KerutaExecutorProperties,
     private val coderWorkspaceService: CoderWorkspaceService,
-    private val coderTemplateService: CoderTemplateService
+    private val coderTemplateService: CoderTemplateService,
 ) {
     private val logger = LoggerFactory.getLogger(SessionMonitoringService::class.java)
 
@@ -72,7 +72,7 @@ open class SessionMonitoringService(
                     if (existingWorkspaces.isEmpty()) {
                         logger.info(
                             "No Coder workspace found for session: sessionId={}. Creating workspace automatically.",
-                            session.id
+                            session.id,
                         )
                         try {
                             createCoderWorkspaceForSession(session)
@@ -87,7 +87,7 @@ open class SessionMonitoringService(
                         logger.info(
                             "Coder workspace exists for session: sessionId={} workspaceCount={}",
                             session.id,
-                            existingWorkspaces.size
+                            existingWorkspaces.size,
                         )
                         // Update session status to ACTIVE if workspace exists
                         updateSessionStatusWithRetry(session.id, "ACTIVE")
@@ -134,7 +134,7 @@ open class SessionMonitoringService(
                     if (coderWorkspaces.isEmpty()) {
                         logger.warn(
                             "No Coder workspace found for active session: sessionId={}. Creating workspace.",
-                            session.id
+                            session.id,
                         )
                         try {
                             createCoderWorkspaceForSession(session)
@@ -150,7 +150,7 @@ open class SessionMonitoringService(
                                         "Starting Coder workspace: sessionId={} workspaceId={} status={}",
                                         session.id,
                                         workspace.id,
-                                        workspace.status
+                                        workspace.status,
                                     )
                                     try {
                                         coderWorkspaceService.startWorkspace(workspace.id)
@@ -159,7 +159,7 @@ open class SessionMonitoringService(
                                             "Failed to start Coder workspace: sessionId={} workspaceId={}",
                                             session.id,
                                             workspace.id,
-                                            e
+                                            e,
                                         )
                                     }
                                 }
@@ -168,7 +168,7 @@ open class SessionMonitoringService(
                                         "Workspace running/starting: sessionId={} workspaceId={} status={}",
                                         session.id,
                                         workspace.id,
-                                        workspace.status
+                                        workspace.status,
                                     )
                                 }
                                 else -> {
@@ -176,7 +176,7 @@ open class SessionMonitoringService(
                                         "Workspace non-startable: sessionId={} workspaceId={} status={}",
                                         session.id,
                                         workspace.id,
-                                        workspace.status
+                                        workspace.status,
                                     )
                                 }
                             }
@@ -260,7 +260,7 @@ open class SessionMonitoringService(
                 "Using template for workspace creation: sessionId={} templateId={} templateName={}",
                 session.id,
                 selectedTemplate.id,
-                selectedTemplate.name
+                selectedTemplate.name,
             )
 
             // Create workspace name with session ID for easy identification
@@ -269,7 +269,7 @@ open class SessionMonitoringService(
             val createRequest = CreateCoderWorkspaceRequest(
                 name = workspaceName,
                 templateId = selectedTemplate.id,
-                richParameterValues = emptyList()
+                richParameterValues = emptyList(),
             )
 
             val createdWorkspace = coderWorkspaceService.createWorkspace(createRequest)
@@ -277,7 +277,7 @@ open class SessionMonitoringService(
                 "Successfully created Coder workspace: sessionId={} workspaceId={} workspaceName={}",
                 session.id,
                 createdWorkspace.id,
-                createdWorkspace.name
+                createdWorkspace.name,
             )
 
             // Start the workspace immediately for active sessions
@@ -286,14 +286,14 @@ open class SessionMonitoringService(
                 logger.info(
                     "Started newly created workspace: sessionId={} workspaceId={}",
                     session.id,
-                    createdWorkspace.id
+                    createdWorkspace.id,
                 )
             } catch (e: Exception) {
                 logger.warn(
                     "Failed to start newly created workspace (will retry later): sessionId={} workspaceId={}",
                     session.id,
                     createdWorkspace.id,
-                    e
+                    e,
                 )
             }
         } catch (e: Exception) {
@@ -377,7 +377,8 @@ open class SessionMonitoringService(
             sessionId = session.id,
             templateId = templateId,
             automaticUpdates = true,
-            ttlMs = 3600000 // 1 hour
+            // 1 hour
+            ttlMs = 3600000,
         )
 
         val entity = HttpEntity(createRequest, headers)
@@ -387,7 +388,7 @@ open class SessionMonitoringService(
             logger.info(
                 "Successfully created workspace: sessionId={} workspaceId={}",
                 session.id,
-                response.body?.id
+                response.body?.id,
             )
         } catch (e: HttpClientErrorException) {
             if (e.statusCode.value() == 400) {
@@ -395,7 +396,7 @@ open class SessionMonitoringService(
                 logger.warn(
                     "Workspace creation failed, likely due to existing workspace: sessionId={} error={}",
                     session.id,
-                    e.message
+                    e.message,
                 )
                 // Don't throw the exception, just log it
             } else {
@@ -403,7 +404,7 @@ open class SessionMonitoringService(
                     "Failed to create workspace for session (HTTP {}): sessionId={}",
                     e.statusCode.value(),
                     session.id,
-                    e
+                    e,
                 )
                 throw e
             }
@@ -413,7 +414,7 @@ open class SessionMonitoringService(
                 "Server error when creating workspace: sessionId={} status={} error={}",
                 session.id,
                 e.statusCode.value(),
-                e.message
+                e.message,
             )
             throw e
         } catch (e: ResourceAccessException) {
@@ -484,7 +485,7 @@ open class SessionMonitoringService(
                 sessionId,
                 status,
                 e.statusCode.value(),
-                e.message
+                e.message,
             )
             throw e
         } catch (e: HttpServerErrorException) {
@@ -493,7 +494,7 @@ open class SessionMonitoringService(
                 sessionId,
                 status,
                 e.statusCode.value(),
-                e.message
+                e.message,
             )
             throw e
         } catch (e: ResourceAccessException) {
@@ -501,7 +502,7 @@ open class SessionMonitoringService(
                 "Network error updating session status: sessionId={} status={} error={}",
                 sessionId,
                 status,
-                e.message
+                e.message,
             )
             throw e
         } catch (e: Exception) {
@@ -540,7 +541,7 @@ open class SessionMonitoringService(
                 "Client error starting workspace: workspaceId={} httpStatus={} error={}",
                 workspaceId,
                 e.statusCode.value(),
-                e.message
+                e.message,
             )
             throw e
         } catch (e: HttpServerErrorException) {
@@ -548,14 +549,14 @@ open class SessionMonitoringService(
                 "Server error starting workspace: workspaceId={} httpStatus={} error={}",
                 workspaceId,
                 e.statusCode.value(),
-                e.message
+                e.message,
             )
             throw e
         } catch (e: ResourceAccessException) {
             logger.error(
                 "Network error starting workspace: workspaceId={} error={}",
                 workspaceId,
-                e.message
+                e.message,
             )
             throw e
         } catch (e: Exception) {
@@ -622,7 +623,7 @@ open class SessionMonitoringService(
                         attempt + 1,
                         operation,
                         delay,
-                        e.message
+                        e.message,
                     )
 
                     try {
@@ -655,7 +656,7 @@ data class SessionDto(
     val status: String,
     val tags: List<String>,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
 )
 
 /**
@@ -669,7 +670,7 @@ data class WorkspaceDto(
     val coderWorkspaceId: String?,
     val workspaceUrl: String?,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
 )
 
 /**
@@ -680,14 +681,14 @@ data class CreateWorkspaceRequest(
     val sessionId: String,
     val templateId: String?,
     val automaticUpdates: Boolean,
-    val ttlMs: Long
+    val ttlMs: Long,
 )
 
 /**
  * Request for updating session status.
  */
 data class UpdateSessionStatusRequest(
-    val status: String
+    val status: String,
 )
 
 /**
@@ -701,5 +702,5 @@ data class WorkspaceTemplateDto(
     val icon: String?,
     val isDefault: Boolean,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
 )

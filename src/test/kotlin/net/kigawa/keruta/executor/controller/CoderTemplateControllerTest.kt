@@ -40,8 +40,8 @@ class CoderTemplateControllerTest {
                 provisioner = "terraform",
                 activeVersionId = "v1.0.0",
                 workspaceCount = 5,
-                deprecated = false
-            )
+                deprecated = false,
+            ),
         )
         every { coderTemplateService.getCoderTemplates() } returns mockTemplates
 
@@ -77,7 +77,7 @@ class CoderTemplateControllerTest {
             provisioner = "terraform",
             activeVersionId = "v1.0.0",
             workspaceCount = 5,
-            deprecated = false
+            deprecated = false,
         )
         every { coderTemplateService.getCoderTemplate(templateId) } returns mockTemplate
 

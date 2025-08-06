@@ -28,7 +28,7 @@ class SessionMonitoringServiceTest {
             restTemplate,
             properties,
             coderWorkspaceService,
-            coderTemplateService
+            coderTemplateService,
         )
     }
 

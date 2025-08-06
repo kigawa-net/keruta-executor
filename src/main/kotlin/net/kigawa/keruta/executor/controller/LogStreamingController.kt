@@ -22,7 +22,7 @@ import java.util.UUID
 @RequestMapping("/api/v1/logs")
 @CrossOrigin(origins = ["*"])
 open class LogStreamingController(
-    private val logStreamingService: LogStreamingService
+    private val logStreamingService: LogStreamingService,
 ) {
     private val logger = LoggerFactory.getLogger(LogStreamingController::class.java)
 
@@ -32,14 +32,14 @@ open class LogStreamingController(
     @GetMapping("/workspace/{workspaceId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamWorkspaceLogs(
         @PathVariable workspaceId: String,
-        @RequestParam(defaultValue = "false") follow: Boolean
+        @RequestParam(defaultValue = "false") follow: Boolean,
     ): SseEmitter {
         val streamId = "workspace-$workspaceId-${UUID.randomUUID()}"
         logger.info(
             "Starting workspace log stream: workspaceId={} streamId={} follow={}",
             workspaceId,
             streamId,
-            follow
+            follow,
         )
 
         return logStreamingService.startLogStream(streamId, workspaceId, null)
@@ -51,14 +51,14 @@ open class LogStreamingController(
     @GetMapping("/task/{taskId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamTaskLogs(
         @PathVariable taskId: String,
-        @RequestParam(defaultValue = "false") follow: Boolean
+        @RequestParam(defaultValue = "false") follow: Boolean,
     ): SseEmitter {
         val streamId = "task-$taskId-${UUID.randomUUID()}"
         logger.info(
             "Starting task log stream: taskId={} streamId={} follow={}",
             taskId,
             streamId,
-            follow
+            follow,
         )
 
         return logStreamingService.startLogStream(streamId, null, taskId)
@@ -68,14 +68,12 @@ open class LogStreamingController(
      * Execute a command and stream its output.
      */
     @PostMapping("/command/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun streamCommandOutput(
-        @RequestBody request: CommandStreamRequest
-    ): SseEmitter {
+    fun streamCommandOutput(@RequestBody request: CommandStreamRequest): SseEmitter {
         val streamId = "command-${UUID.randomUUID()}"
         logger.info(
             "Starting command stream: command={} streamId={}",
             request.command,
-            streamId
+            streamId,
         )
 
         val emitter = SseEmitter()
@@ -83,7 +81,7 @@ open class LogStreamingController(
             streamId,
             request.command,
             request.workingDirectory,
-            emitter
+            emitter,
         )
 
         return emitter
@@ -118,7 +116,7 @@ open class LogStreamingController(
         return mapOf(
             "status" to "healthy",
             "activeStreamsCount" to activeStreams.size,
-            "timestamp" to System.currentTimeMillis()
+            "timestamp" to System.currentTimeMillis(),
         )
     }
 }
@@ -128,5 +126,5 @@ open class LogStreamingController(
  */
 data class CommandStreamRequest(
     val command: String,
-    val workingDirectory: String? = null
+    val workingDirectory: String? = null,
 )

@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/workspaces")
 @CrossOrigin(origins = ["*"])
 class WorkspaceController(
-    private val coderWorkspaceService: CoderWorkspaceService
+    private val coderWorkspaceService: CoderWorkspaceService,
 ) {
     private val logger = LoggerFactory.getLogger(WorkspaceController::class.java)
 

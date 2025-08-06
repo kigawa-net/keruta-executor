@@ -20,7 +20,7 @@ import java.time.ZoneId
 open class CoderWorkspaceService(
     private val restTemplate: RestTemplate,
     private val properties: KerutaExecutorProperties,
-    private val coderTemplateService: CoderTemplateService
+    private val coderTemplateService: CoderTemplateService,
 ) {
     private val logger = LoggerFactory.getLogger(CoderWorkspaceService::class.java)
 
@@ -106,7 +106,7 @@ open class CoderWorkspaceService(
             val createRequest = mapOf(
                 "name" to request.name,
                 "template_id" to request.templateId,
-                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
+                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>()),
             )
 
             logger.info("Sending workspace creation request to URL: {} with data: {}", url, createRequest)
@@ -120,7 +120,7 @@ open class CoderWorkspaceService(
                 "HTTP error creating workspace: {} - Status: {}, Body: {}",
                 request.name,
                 e.statusCode,
-                e.responseBodyAsString
+                e.responseBodyAsString,
             )
             if (e.statusCode.value() == 401) {
                 logger.warn("Authentication failed while creating workspace, attempting with refresh")
@@ -135,13 +135,13 @@ open class CoderWorkspaceService(
                     logger.info(
                         "Successfully found existing workspace: name={} id={}",
                         existingWorkspace.name,
-                        existingWorkspace.id
+                        existingWorkspace.id,
                     )
                     return existingWorkspace
                 } else {
                     logger.error(
                         "Could not find existing workspace '{}' despite 409 conflict - API inconsistency",
-                        request.name
+                        request.name,
                     )
 
                     // Debug: List all workspaces to understand the issue
@@ -160,13 +160,13 @@ open class CoderWorkspaceService(
                             logger.warn(
                                 "Found workspace with case-insensitive match: '{}' vs '{}'",
                                 caseInsensitiveMatch.name,
-                                request.name
+                                request.name,
                             )
 
                             // Try to delete and recreate if exact match is needed
                             logger.info(
                                 "Attempting to delete existing workspace '{}' and recreate with correct name",
-                                caseInsensitiveMatch.name
+                                caseInsensitiveMatch.name,
                             )
                             try {
                                 if (deleteWorkspace(caseInsensitiveMatch.id)) {
@@ -211,7 +211,7 @@ open class CoderWorkspaceService(
             headers.set("Content-Type", "application/json")
 
             val startRequest = mapOf(
-                "transition" to "start"
+                "transition" to "start",
             )
 
             val entity = HttpEntity(startRequest, headers)
@@ -245,7 +245,7 @@ open class CoderWorkspaceService(
             headers.set("Content-Type", "application/json")
 
             val stopRequest = mapOf(
-                "transition" to "stop"
+                "transition" to "stop",
             )
 
             val entity = HttpEntity(stopRequest, headers)
@@ -325,7 +325,7 @@ open class CoderWorkspaceService(
                 logger.info(
                     "Successfully found existing workspace: name='{}' id='{}'",
                     matchingWorkspace.name,
-                    matchingWorkspace.id
+                    matchingWorkspace.id,
                 )
             } else {
                 logger.warn("No existing workspace found with exact name: '{}'. Available workspaces:", workspaceName)
@@ -354,7 +354,7 @@ open class CoderWorkspaceService(
                 url,
                 HttpMethod.GET,
                 entity,
-                CoderPaginatedWorkspacesResponse::class.java
+                CoderPaginatedWorkspacesResponse::class.java,
             )
             val apiWorkspaces = paginatedResponse.body?.workspaces ?: emptyList()
             logger.info("Successfully fetched {} workspaces from paginated response", apiWorkspaces.size)
@@ -367,7 +367,7 @@ open class CoderWorkspaceService(
                     url,
                     HttpMethod.GET,
                     entity,
-                    CoderWorkspacesWrapperResponse::class.java
+                    CoderWorkspacesWrapperResponse::class.java,
                 )
                 val apiWorkspaces = wrappedResponse.body?.workspaces ?: emptyList()
                 logger.info("Successfully fetched {} workspaces from wrapped response", apiWorkspaces.size)
@@ -433,7 +433,7 @@ open class CoderWorkspaceService(
             val createRequest = mapOf(
                 "name" to request.name,
                 "template_id" to request.templateId,
-                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
+                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>()),
             )
 
             logger.info("Trying organization-based endpoint: {} with data: {}", orgUrl, createRequest)
@@ -442,20 +442,20 @@ open class CoderWorkspaceService(
             val response = restTemplate.exchange(orgUrl, HttpMethod.POST, entity, CoderWorkspaceApiResponse::class.java)
 
             return response.body?.toDto() ?: throw RuntimeException(
-                "Failed to create workspace via organization endpoint - no response body"
+                "Failed to create workspace via organization endpoint - no response body",
             )
         } catch (e: HttpClientErrorException) {
             if (e.statusCode.value() == 409) {
                 logger.warn(
                     "Workspace '{}' already exists at organization endpoint, attempting to fetch existing workspace",
-                    request.name
+                    request.name,
                 )
                 val existingWorkspace = findExistingWorkspaceByName(request.name)
                 if (existingWorkspace != null) {
                     logger.info(
                         "Found existing workspace via organization endpoint: name={} id={}",
                         existingWorkspace.name,
-                        existingWorkspace.id
+                        existingWorkspace.id,
                     )
                     return existingWorkspace
                 }
@@ -463,7 +463,7 @@ open class CoderWorkspaceService(
             logger.warn(
                 "Organization endpoint failed: {} - Status: {}, trying legacy endpoint",
                 request.name,
-                e.statusCode
+                e.statusCode,
             )
         }
 
@@ -476,7 +476,7 @@ open class CoderWorkspaceService(
             val createRequest = mapOf(
                 "name" to request.name,
                 "template_id" to request.templateId,
-                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>())
+                "rich_parameter_values" to (request.richParameterValues ?: emptyList<Any>()),
             )
 
             logger.info("Trying legacy endpoint: {} with data: {}", legacyUrl, createRequest)
@@ -486,24 +486,24 @@ open class CoderWorkspaceService(
                 legacyUrl,
                 HttpMethod.POST,
                 entity,
-                CoderWorkspaceApiResponse::class.java
+                CoderWorkspaceApiResponse::class.java,
             )
 
             response.body?.toDto() ?: throw RuntimeException(
-                "Failed to create workspace via legacy endpoint - no response body"
+                "Failed to create workspace via legacy endpoint - no response body",
             )
         } catch (e: HttpClientErrorException) {
             if (e.statusCode.value() == 409) {
                 logger.warn(
                     "Workspace '{}' already exists at legacy endpoint, attempting to fetch existing workspace",
-                    request.name
+                    request.name,
                 )
                 val existingWorkspace = findExistingWorkspaceByName(request.name)
                 if (existingWorkspace != null) {
                     logger.info(
                         "Found existing workspace via legacy endpoint: name={} id={}",
                         existingWorkspace.name,
-                        existingWorkspace.id
+                        existingWorkspace.id,
                     )
                     return existingWorkspace
                 }
@@ -512,7 +512,7 @@ open class CoderWorkspaceService(
                 "All alternative endpoints failed: {} - Status: {}, Body: {}",
                 request.name,
                 e.statusCode,
-                e.responseBodyAsString
+                e.responseBodyAsString,
             )
             throw e
         }
@@ -578,7 +578,7 @@ data class CoderWorkspaceDto(
     val autoStop: Boolean,
     val lastUsedAt: LocalDateTime,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
 )
 
 /**
@@ -587,7 +587,7 @@ data class CoderWorkspaceDto(
 data class CreateCoderWorkspaceRequest(
     val name: String,
     val templateId: String,
-    val richParameterValues: List<Any>? = null
+    val richParameterValues: List<Any>? = null,
 )
 
 /**
@@ -607,7 +607,7 @@ data class CoderWorkspaceApiResponse(
     val ttl_ms: Long?,
     val last_used_at: String?,
     val created_at: String?,
-    val updated_at: String?
+    val updated_at: String?,
 ) {
     fun toDto(): CoderWorkspaceDto {
         return CoderWorkspaceDto(
@@ -621,12 +621,13 @@ data class CoderWorkspaceApiResponse(
             templateIcon = template_icon ?: "/icon/default.svg",
             status = latest_build?.status ?: "unknown",
             health = latest_build?.resources?.firstOrNull()?.health ?: "unknown",
-            accessUrl = "https://coder.example.com/workspaces/$name", // Placeholder
+            // Placeholder
+            accessUrl = "https://coder.example.com/workspaces/$name",
             autoStart = autostart_schedule != null,
             autoStop = ttl_ms != null && ttl_ms > 0,
             lastUsedAt = parseDateTime(last_used_at),
             createdAt = parseDateTime(created_at),
-            updatedAt = parseDateTime(updated_at)
+            updatedAt = parseDateTime(updated_at),
         )
     }
 
@@ -645,18 +646,18 @@ data class CoderWorkspaceApiResponse(
 
 data class LatestBuildApiResponse(
     val status: String?,
-    val resources: List<ResourceApiResponse>?
+    val resources: List<ResourceApiResponse>?,
 )
 
 data class ResourceApiResponse(
-    val health: String?
+    val health: String?,
 )
 
 /**
  * Wrapper response for Coder API that returns workspaces in a wrapped format.
  */
 data class CoderWorkspacesWrapperResponse(
-    val workspaces: List<CoderWorkspaceApiResponse>?
+    val workspaces: List<CoderWorkspaceApiResponse>?,
 )
 
 /**
@@ -665,5 +666,5 @@ data class CoderWorkspacesWrapperResponse(
 data class CoderPaginatedWorkspacesResponse(
     val workspaces: List<CoderWorkspaceApiResponse>?,
     val count: Int?,
-    val after_id: String?
+    val after_id: String?,
 )

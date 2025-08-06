@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 @Service
 open class CoderTemplateService(
     private val restTemplate: RestTemplate,
-    private val properties: KerutaExecutorProperties
+    private val properties: KerutaExecutorProperties,
 ) {
     private val logger = LoggerFactory.getLogger(CoderTemplateService::class.java)
 
@@ -74,7 +74,7 @@ open class CoderTemplateService(
         try {
             if (properties.coder.token == null) {
                 logger.error(
-                    "No Coder token available for refresh. Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
+                    "No Coder token available for refresh. Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret.",
                 )
                 return getMockCoderTemplates()
             }
@@ -83,7 +83,7 @@ open class CoderTemplateService(
         } catch (e: Exception) {
             logger.error(
                 "Failed to refresh authentication or fetch templates after refresh, falling back to mock data",
-                e
+                e,
             )
             return getMockCoderTemplates()
         }
@@ -153,7 +153,7 @@ open class CoderTemplateService(
                 "--lifetime",
                 "24h",
                 "--scope",
-                "all"
+                "all",
             ).start()
 
             val tokenExitCode = tokenCreateProcess.waitFor()
@@ -188,7 +188,7 @@ open class CoderTemplateService(
             } else {
                 logger.warn(
                     "No Coder token configured - scheduled refresh skipped. " +
-                        "Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret."
+                        "Check KERUTA_EXECUTOR_CODER_TOKEN env var or K8s secret.",
                 )
             }
         } catch (e: Exception) {
@@ -215,16 +215,19 @@ open class CoderTemplateService(
                 displayName = "Ubuntu Basic",
                 description = "Basic Ubuntu workspace with essential development tools",
                 icon = "/icon/ubuntu.svg",
-                defaultTtlMs = 3600000, // 1 hour
-                maxTtlMs = 28800000, // 8 hours
-                minAutostartIntervalMs = 3600000, // 1 hour
+                // 1 hour
+                defaultTtlMs = 3600000,
+                // 8 hours
+                maxTtlMs = 28800000,
+                // 1 hour
+                minAutostartIntervalMs = 3600000,
                 createdByName = "admin",
                 updatedAt = LocalDateTime.now(),
                 organizationId = "default",
                 provisioner = "terraform",
                 activeVersionId = "v1.0.0",
                 workspaceCount = 0,
-                deprecated = false
+                deprecated = false,
             ),
             CoderTemplateDto(
                 id = "nodejs-dev",
@@ -232,16 +235,19 @@ open class CoderTemplateService(
                 displayName = "Node.js Development",
                 description = "Node.js development environment with VS Code",
                 icon = "/icon/nodejs.svg",
-                defaultTtlMs = 3600000, // 1 hour
-                maxTtlMs = 28800000, // 8 hours
-                minAutostartIntervalMs = 3600000, // 1 hour
+                // 1 hour
+                defaultTtlMs = 3600000,
+                // 8 hours
+                maxTtlMs = 28800000,
+                // 1 hour
+                minAutostartIntervalMs = 3600000,
                 createdByName = "admin",
                 updatedAt = LocalDateTime.now(),
                 organizationId = "default",
                 provisioner = "terraform",
                 activeVersionId = "v1.0.0",
                 workspaceCount = 0,
-                deprecated = false
+                deprecated = false,
             ),
             CoderTemplateDto(
                 id = "python-datascience",
@@ -249,16 +255,19 @@ open class CoderTemplateService(
                 displayName = "Python Data Science",
                 description = "Python environment with Jupyter, pandas, and ML libraries",
                 icon = "/icon/python.svg",
-                defaultTtlMs = 7200000, // 2 hours
-                maxTtlMs = 43200000, // 12 hours
-                minAutostartIntervalMs = 3600000, // 1 hour
+                // 2 hours
+                defaultTtlMs = 7200000,
+                // 12 hours
+                maxTtlMs = 43200000,
+                // 1 hour
+                minAutostartIntervalMs = 3600000,
                 createdByName = "admin",
                 updatedAt = LocalDateTime.now(),
                 organizationId = "default",
                 provisioner = "terraform",
                 activeVersionId = "v1.0.0",
                 workspaceCount = 0,
-                deprecated = false
+                deprecated = false,
             ),
             CoderTemplateDto(
                 id = "keruta-ubuntu",
@@ -266,17 +275,20 @@ open class CoderTemplateService(
                 displayName = "Keruta Ubuntu",
                 description = "Ubuntu environment optimized for Keruta development tasks with Claude Code integration",
                 icon = "/icon/keruta.svg",
-                defaultTtlMs = 3600000, // 1 hour
-                maxTtlMs = 28800000, // 8 hours
-                minAutostartIntervalMs = 3600000, // 1 hour
+                // 1 hour
+                defaultTtlMs = 3600000,
+                // 8 hours
+                maxTtlMs = 28800000,
+                // 1 hour
+                minAutostartIntervalMs = 3600000,
                 createdByName = "admin",
                 updatedAt = LocalDateTime.now(),
                 organizationId = "default",
                 provisioner = "terraform",
                 activeVersionId = "v1.0.0",
                 workspaceCount = 0,
-                deprecated = false
-            )
+                deprecated = false,
+            ),
         )
     }
 }
@@ -299,7 +311,7 @@ data class CoderTemplateDto(
     val provisioner: String,
     val activeVersionId: String,
     val workspaceCount: Int,
-    val deprecated: Boolean = false
+    val deprecated: Boolean = false,
 )
 
 /**
@@ -320,7 +332,7 @@ data class CoderTemplateApiResponse(
     val provisioner: String?,
     val active_version_id: String?,
     val workspace_count: Int?,
-    val deprecated: Boolean?
+    val deprecated: Boolean?,
 ) {
     fun toDto(): CoderTemplateDto {
         return CoderTemplateDto(
@@ -338,7 +350,7 @@ data class CoderTemplateApiResponse(
             provisioner = provisioner ?: "terraform",
             activeVersionId = active_version_id ?: "unknown",
             workspaceCount = workspace_count ?: 0,
-            deprecated = deprecated ?: false
+            deprecated = deprecated ?: false,
         )
     }
 }

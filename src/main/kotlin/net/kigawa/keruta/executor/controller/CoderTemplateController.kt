@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/coder")
 @CrossOrigin(origins = ["*"])
 class CoderTemplateController(
-    private val coderTemplateService: CoderTemplateService
+    private val coderTemplateService: CoderTemplateService,
 ) {
     private val logger = LoggerFactory.getLogger(CoderTemplateController::class.java)
 

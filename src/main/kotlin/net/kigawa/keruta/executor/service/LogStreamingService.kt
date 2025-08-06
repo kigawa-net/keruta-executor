@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 open class LogStreamingService(
-    private val properties: KerutaExecutorProperties
+    private val properties: KerutaExecutorProperties,
 ) {
     private val logger = LoggerFactory.getLogger(LogStreamingService::class.java)
 
@@ -102,7 +102,7 @@ open class LogStreamingService(
                     level = "INFO",
                     source = "workspace",
                     workspaceId = workspaceId,
-                    message = "Connected to workspace log stream"
+                    message = "Connected to workspace log stream",
                 )
                 emitter.send(SseEmitter.event().name("log").data(connectEvent))
 
@@ -129,7 +129,7 @@ open class LogStreamingService(
                     level = "INFO",
                     source = "task",
                     taskId = taskId,
-                    message = "Connected to task log stream"
+                    message = "Connected to task log stream",
                 )
                 emitter.send(SseEmitter.event().name("log").data(connectEvent))
 
@@ -161,7 +161,7 @@ open class LogStreamingService(
                     level = if (counter % 10 == 0) "ERROR" else if (counter % 5 == 0) "WARN" else "INFO",
                     source = "workspace",
                     workspaceId = workspaceId,
-                    message = "Workspace log entry #${counter + 1}: Simulated workspace activity"
+                    message = "Workspace log entry #${counter + 1}: Simulated workspace activity",
                 )
 
                 emitter.send(SseEmitter.event().name("log").data(logEvent))
@@ -179,7 +179,7 @@ open class LogStreamingService(
                 level = "INFO",
                 source = "workspace",
                 workspaceId = workspaceId,
-                message = "Workspace log stream completed"
+                message = "Workspace log stream completed",
             )
             emitter.send(SseEmitter.event().name("complete").data(completeEvent))
         } catch (e: Exception) {
@@ -207,7 +207,7 @@ open class LogStreamingService(
                     level = if (counter % 8 == 0) "ERROR" else if (counter % 4 == 0) "WARN" else "INFO",
                     source = "task",
                     taskId = taskId,
-                    message = "Task log entry #${counter + 1}: Executing task step ${counter + 1}"
+                    message = "Task log entry #${counter + 1}: Executing task step ${counter + 1}",
                 )
 
                 emitter.send(SseEmitter.event().name("log").data(logEvent))
@@ -225,7 +225,7 @@ open class LogStreamingService(
                 level = "INFO",
                 source = "task",
                 taskId = taskId,
-                message = "Task execution completed"
+                message = "Task execution completed",
             )
             emitter.send(SseEmitter.event().name("complete").data(completeEvent))
         } catch (e: Exception) {
@@ -242,7 +242,7 @@ open class LogStreamingService(
         streamId: String,
         command: String,
         workingDirectory: String? = null,
-        emitter: SseEmitter
+        emitter: SseEmitter,
     ) {
         CompletableFuture.runAsync({
             try {
@@ -262,7 +262,7 @@ open class LogStreamingService(
                             timestamp = LocalDateTime.now(),
                             level = "INFO",
                             source = "command",
-                            message = line!!
+                            message = line!!,
                         )
                         emitter.send(SseEmitter.event().name("log").data(logEvent))
                     }
@@ -275,7 +275,7 @@ open class LogStreamingService(
                     timestamp = LocalDateTime.now(),
                     level = if (exitCode == 0) "INFO" else "ERROR",
                     source = "command",
-                    message = "Command completed with exit code: $exitCode"
+                    message = "Command completed with exit code: $exitCode",
                 )
                 emitter.send(SseEmitter.event().name("complete").data(completeEvent))
             } catch (e: Exception) {
@@ -284,7 +284,7 @@ open class LogStreamingService(
                     timestamp = LocalDateTime.now(),
                     level = "ERROR",
                     source = "command",
-                    message = "Command execution failed: ${e.message}"
+                    message = "Command execution failed: ${e.message}",
                 )
                 emitter.send(SseEmitter.event().name("error").data(errorEvent))
             } finally {
@@ -323,5 +323,5 @@ data class LogStreamEvent(
     val source: String,
     val workspaceId: String? = null,
     val taskId: String? = null,
-    val message: String
+    val message: String,
 )

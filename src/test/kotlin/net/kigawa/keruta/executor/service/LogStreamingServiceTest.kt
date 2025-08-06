@@ -128,7 +128,7 @@ class LogStreamingServiceTest {
             level = level,
             source = source,
             workspaceId = workspaceId,
-            message = message
+            message = message,
         )
 
         // Then

@@ -16,7 +16,7 @@ data class KerutaExecutorProperties @ConstructorBinding constructor(
     /**
      * Coder server configuration.
      */
-    val coder: CoderProperties = CoderProperties("http://localhost:7080")
+    val coder: CoderProperties = CoderProperties("http://localhost:7080"),
 )
 
 /**
@@ -31,5 +31,5 @@ data class CoderProperties(
     /**
      * API token for authenticating with Coder server.
      */
-    val token: String? = null
+    val token: String? = null,
 )
