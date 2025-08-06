@@ -7,10 +7,11 @@ COPY gradlew .
 COPY gradle gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
+COPY gradle.properties .
 
 COPY src src
-# Build the application
-RUN gradle bootJar --no-daemon
+# Build the application with limited memory
+RUN GRADLE_OPTS="-Xmx1g" ./gradlew bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
