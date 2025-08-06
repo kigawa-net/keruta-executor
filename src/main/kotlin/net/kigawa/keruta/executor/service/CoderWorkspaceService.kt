@@ -125,6 +125,17 @@ open class CoderWorkspaceService(
             if (e.statusCode.value() == 401) {
                 logger.warn("Authentication failed while creating workspace, attempting with refresh")
                 tryCreateWorkspaceWithRefresh(request)
+            } else if (e.statusCode.value() == 409) {
+                logger.warn("Workspace '{}' already exists, attempting to fetch existing workspace", request.name)
+                // Try to find and return the existing workspace
+                val existingWorkspace = findExistingWorkspaceByName(request.name)
+                if (existingWorkspace != null) {
+                    logger.info("Found existing workspace: name={} id={}", existingWorkspace.name, existingWorkspace.id)
+                    return existingWorkspace
+                } else {
+                    logger.error("Could not find existing workspace despite 409 conflict")
+                    throw e
+                }
             } else if (e.statusCode.value() == 405 || e.statusCode.value() == 404) {
                 logger.error("Endpoint not found or method not allowed - trying alternative endpoint")
                 // Try alternative endpoint formats
@@ -243,6 +254,29 @@ open class CoderWorkspaceService(
         return coderTemplateService.getCoderTemplates()
     }
 
+    /**
+     * Finds an existing workspace by name.
+     */
+    private fun findExistingWorkspaceByName(workspaceName: String): CoderWorkspaceDto? {
+        logger.debug("Searching for existing workspace with name: {}", workspaceName)
+
+        return try {
+            val workspaces = getAllWorkspaces()
+            val matchingWorkspace = workspaces.find { it.name == workspaceName }
+
+            if (matchingWorkspace != null) {
+                logger.debug("Found existing workspace: name={} id={}", matchingWorkspace.name, matchingWorkspace.id)
+            } else {
+                logger.debug("No existing workspace found with name: {}", workspaceName)
+            }
+
+            matchingWorkspace
+        } catch (e: Exception) {
+            logger.warn("Failed to search for existing workspace: {}", workspaceName, e)
+            null
+        }
+    }
+
     // Private helper methods with authentication refresh
 
     private fun tryFetchWorkspaces(): List<CoderWorkspaceDto> {
@@ -347,6 +381,21 @@ open class CoderWorkspaceService(
                 "Failed to create workspace via organization endpoint - no response body"
             )
         } catch (e: HttpClientErrorException) {
+            if (e.statusCode.value() == 409) {
+                logger.warn(
+                    "Workspace '{}' already exists at organization endpoint, attempting to fetch existing workspace",
+                    request.name
+                )
+                val existingWorkspace = findExistingWorkspaceByName(request.name)
+                if (existingWorkspace != null) {
+                    logger.info(
+                        "Found existing workspace via organization endpoint: name={} id={}",
+                        existingWorkspace.name,
+                        existingWorkspace.id
+                    )
+                    return existingWorkspace
+                }
+            }
             logger.warn(
                 "Organization endpoint failed: {} - Status: {}, trying legacy endpoint",
                 request.name,
@@ -380,6 +429,21 @@ open class CoderWorkspaceService(
                 "Failed to create workspace via legacy endpoint - no response body"
             )
         } catch (e: HttpClientErrorException) {
+            if (e.statusCode.value() == 409) {
+                logger.warn(
+                    "Workspace '{}' already exists at legacy endpoint, attempting to fetch existing workspace",
+                    request.name
+                )
+                val existingWorkspace = findExistingWorkspaceByName(request.name)
+                if (existingWorkspace != null) {
+                    logger.info(
+                        "Found existing workspace via legacy endpoint: name={} id={}",
+                        existingWorkspace.name,
+                        existingWorkspace.id
+                    )
+                    return existingWorkspace
+                }
+            }
             logger.error(
                 "All alternative endpoints failed: {} - Status: {}, Body: {}",
                 request.name,
