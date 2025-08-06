@@ -8,10 +8,6 @@ COPY gradle gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
 
-# Download dependencies
-RUN gradle dependencies --no-daemon
-
-
 COPY src src
 # Build the application
 RUN gradle bootJar --no-daemon
