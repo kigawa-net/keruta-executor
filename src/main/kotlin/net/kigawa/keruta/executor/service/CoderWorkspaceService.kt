@@ -128,15 +128,22 @@ open class CoderWorkspaceService(
             } else if (e.statusCode.value() == 409) {
                 logger.warn("Workspace '{}' already exists, attempting to fetch existing workspace", request.name)
                 logger.debug("409 Conflict response body: {}", e.responseBodyAsString)
-                
+
                 // Try to find and return the existing workspace
                 val existingWorkspace = findExistingWorkspaceByName(request.name)
                 if (existingWorkspace != null) {
-                    logger.info("Successfully found existing workspace: name={} id={}", existingWorkspace.name, existingWorkspace.id)
+                    logger.info(
+                        "Successfully found existing workspace: name={} id={}",
+                        existingWorkspace.name,
+                        existingWorkspace.id
+                    )
                     return existingWorkspace
                 } else {
-                    logger.error("Could not find existing workspace '{}' despite 409 conflict - this may indicate API inconsistency", request.name)
-                    
+                    logger.error(
+                        "Could not find existing workspace '{}' despite 409 conflict - API inconsistency",
+                        request.name
+                    )
+
                     // Debug: List all workspaces to understand the issue
                     try {
                         val allWorkspaces = getAllWorkspaces()
@@ -144,15 +151,23 @@ open class CoderWorkspaceService(
                         allWorkspaces.take(5).forEach { ws ->
                             logger.debug("  - Workspace: name='{}' id='{}'", ws.name, ws.id)
                         }
-                        
+
                         // Try case-insensitive search as fallback
-                        val caseInsensitiveMatch = allWorkspaces.find { it.name.equals(request.name, ignoreCase = true) }
+                        val caseInsensitiveMatch = allWorkspaces.find {
+                            it.name.equals(request.name, ignoreCase = true)
+                        }
                         if (caseInsensitiveMatch != null) {
-                            logger.warn("Found workspace with case-insensitive match: '{}' vs '{}'", 
-                                caseInsensitiveMatch.name, request.name)
-                                
+                            logger.warn(
+                                "Found workspace with case-insensitive match: '{}' vs '{}'",
+                                caseInsensitiveMatch.name,
+                                request.name
+                            )
+
                             // Try to delete and recreate if exact match is needed
-                            logger.info("Attempting to delete existing workspace '{}' and recreate with correct name", caseInsensitiveMatch.name)
+                            logger.info(
+                                "Attempting to delete existing workspace '{}' and recreate with correct name",
+                                caseInsensitiveMatch.name
+                            )
                             try {
                                 if (deleteWorkspace(caseInsensitiveMatch.id)) {
                                     logger.info("Successfully deleted existing workspace, retrying creation")
@@ -168,7 +183,7 @@ open class CoderWorkspaceService(
                     } catch (ex: Exception) {
                         logger.warn("Failed to list workspaces for debugging", ex)
                     }
-                    
+
                     throw RuntimeException("Workspace '${request.name}' already exists but could not be retrieved", e)
                 }
             } else if (e.statusCode.value() == 405 || e.statusCode.value() == 404) {
@@ -298,16 +313,20 @@ open class CoderWorkspaceService(
         return try {
             val workspaces = getAllWorkspaces()
             logger.debug("Retrieved {} total workspaces from Coder API", workspaces.size)
-            
+
             // Debug: Log first few workspace names for comparison
             workspaces.take(3).forEach { ws ->
                 logger.debug("  - Found workspace: name='{}' (exact match: {})", ws.name, ws.name == workspaceName)
             }
-            
+
             val matchingWorkspace = workspaces.find { it.name == workspaceName }
 
             if (matchingWorkspace != null) {
-                logger.info("Successfully found existing workspace: name='{}' id='{}'", matchingWorkspace.name, matchingWorkspace.id)
+                logger.info(
+                    "Successfully found existing workspace: name='{}' id='{}'",
+                    matchingWorkspace.name,
+                    matchingWorkspace.id
+                )
             } else {
                 logger.warn("No existing workspace found with exact name: '{}'. Available workspaces:", workspaceName)
                 workspaces.take(5).forEach { ws ->
