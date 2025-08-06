@@ -152,7 +152,7 @@ open class CoderWorkspaceService(
                             logger.debug("  - Workspace: name='{}' id='{}'", ws.name, ws.id)
                         }
 
-                        // Try case-insensitive search as fallback
+                        // Try case-insensitive and partial match searches as fallback
                         val caseInsensitiveMatch = allWorkspaces.find {
                             it.name.equals(request.name, ignoreCase = true)
                         }
@@ -162,23 +162,22 @@ open class CoderWorkspaceService(
                                 caseInsensitiveMatch.name,
                                 request.name,
                             )
+                            // Return the existing workspace rather than attempting deletion
+                            return caseInsensitiveMatch
+                        }
 
-                            // Try to delete and recreate if exact match is needed
-                            logger.info(
-                                "Attempting to delete existing workspace '{}' and recreate with correct name",
-                                caseInsensitiveMatch.name,
+                        // Try partial match (for cases where workspace names have prefixes/suffixes)
+                        val partialMatch = allWorkspaces.find {
+                            it.name.contains(request.name) || request.name.contains(it.name)
+                        }
+                        if (partialMatch != null) {
+                            logger.warn(
+                                "Found workspace with partial match: '{}' vs '{}'",
+                                partialMatch.name,
+                                request.name,
                             )
-                            try {
-                                if (deleteWorkspace(caseInsensitiveMatch.id)) {
-                                    logger.info("Successfully deleted existing workspace, retrying creation")
-                                    Thread.sleep(2000) // Wait for deletion to complete
-                                    return createWorkspace(request) // Recursive retry
-                                } else {
-                                    logger.error("Failed to delete existing workspace")
-                                }
-                            } catch (deleteEx: Exception) {
-                                logger.error("Error during workspace deletion and recreation", deleteEx)
-                            }
+                            // Return the existing workspace
+                            return partialMatch
                         }
                     } catch (ex: Exception) {
                         logger.warn("Failed to list workspaces for debugging", ex)

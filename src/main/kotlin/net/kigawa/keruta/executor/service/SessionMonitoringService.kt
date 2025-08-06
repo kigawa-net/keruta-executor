@@ -348,9 +348,12 @@ open class SessionMonitoringService(
             .replace("[^a-zA-Z0-9-_]".toRegex(), "-")
             .replace("-+".toRegex(), "-")
             .trim('-')
-            .take(30) // Limit length
+            .take(20) // Limit length to leave room for timestamp
 
-        return "session-${session.id.take(8)}-$sanitizedSessionName"
+        // Add timestamp to ensure uniqueness
+        val timestamp = System.currentTimeMillis().toString().takeLast(6)
+        
+        return "session-${session.id.take(8)}-$sanitizedSessionName-$timestamp"
     }
 
     /**
