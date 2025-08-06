@@ -352,7 +352,6 @@ open class SessionMonitoringService(
 
         // Add timestamp to ensure uniqueness
         val timestamp = System.currentTimeMillis().toString().takeLast(6)
-        
         return "session-${session.id.take(8)}-$sanitizedSessionName-$timestamp"
     }
 
