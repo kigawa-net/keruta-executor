@@ -1,34 +1,30 @@
 package net.kigawa.keruta.executor.service
 
-import io.mockk.every
 import io.mockk.mockk
-import net.kigawa.keruta.executor.config.KerutaExecutorProperties
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.web.client.RestTemplate
 
 class SessionMonitoringServiceTest {
 
-    private lateinit var restTemplate: RestTemplate
-    private lateinit var properties: KerutaExecutorProperties
+    private lateinit var sessionApiClient: SessionApiClient
+    private lateinit var circuitBreakerService: CircuitBreakerService
+    private lateinit var workspaceCreationHandler: WorkspaceCreationHandler
     private lateinit var coderWorkspaceService: CoderWorkspaceService
-    private lateinit var coderTemplateService: CoderTemplateService
     private lateinit var sessionMonitoringService: SessionMonitoringService
 
     @BeforeEach
     fun setUp() {
-        restTemplate = mockk(relaxed = true)
-        properties = mockk(relaxed = true)
+        sessionApiClient = mockk(relaxed = true)
+        circuitBreakerService = mockk(relaxed = true)
+        workspaceCreationHandler = mockk(relaxed = true)
         coderWorkspaceService = mockk(relaxed = true)
-        coderTemplateService = mockk(relaxed = true)
-        every { properties.apiBaseUrl } returns "http://localhost:8080"
 
         sessionMonitoringService = SessionMonitoringService(
-            restTemplate,
-            properties,
+            sessionApiClient,
+            circuitBreakerService,
+            workspaceCreationHandler,
             coderWorkspaceService,
-            coderTemplateService,
         )
     }
 
