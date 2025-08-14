@@ -107,6 +107,64 @@ open class SessionMonitoringService(
     }
 
     /**
+     * Monitors inactive sessions and reactivates them if workspaces become available.
+     * Runs every 90 seconds.
+     */
+    @Scheduled(fixedDelay = 90000)
+    fun monitorInactiveSessions() {
+        logger.debug("Monitoring inactive sessions")
+
+        try {
+            // Get all INACTIVE sessions
+            val inactiveSessions = getInactiveSessions()
+
+            for (session in inactiveSessions) {
+                logger.debug("Checking inactive session: sessionId={}", session.id)
+
+                try {
+                    // Check circuit breaker
+                    if (isCircuitOpen("session_${session.id}")) {
+                        logger.warn("Circuit breaker is open for inactive session: sessionId={}", session.id)
+                        continue
+                    }
+
+                    // Get Coder workspaces for this session
+                    val coderWorkspaces = coderWorkspaceService.getWorkspacesBySessionId(session.id)
+
+                    if (coderWorkspaces.isNotEmpty()) {
+                        // Check if any workspace is running or starting
+                        val hasRunningWorkspace = coderWorkspaces.any { workspace ->
+                            workspace.status.lowercase() in listOf("running", "starting")
+                        }
+
+                        if (hasRunningWorkspace) {
+                            logger.info(
+                                "Found running workspace for inactive session, reactivating: sessionId={} workspaceCount={}",
+                                session.id,
+                                coderWorkspaces.size,
+                            )
+                            try {
+                                updateSessionStatusWithRetry(session.id, "ACTIVE")
+                                logger.info("Successfully reactivated session: sessionId={}", session.id)
+                            } catch (e: Exception) {
+                                logger.error("Failed to reactivate session: sessionId={}", session.id, e)
+                            }
+                        }
+                    }
+
+                    // Record success
+                    recordSuccess("session_${session.id}")
+                } catch (e: Exception) {
+                    recordFailure("session_${session.id}")
+                    logger.error("Failed to process inactive session: sessionId={} error={}", session.id, e.message, e)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Error monitoring inactive sessions", e)
+        }
+    }
+
+    /**
      * Monitors active sessions and ensures workspaces are running.
      * Runs every 60 seconds.
      */
@@ -142,6 +200,28 @@ open class SessionMonitoringService(
                             logger.error("Failed to create workspace for active session: sessionId={}", session.id, e)
                         }
                     } else {
+                        // Check if all workspaces are stopped and set session to inactive
+                        val allWorkspacesStopped = coderWorkspaces.all { workspace ->
+                            workspace.status.lowercase() in listOf("stopped", "pending", "failed")
+                        }
+
+                        if (allWorkspacesStopped) {
+                            logger.info(
+                                "All workspaces are stopped for active session, setting session to inactive: sessionId={} workspaceCount={}",
+                                session.id,
+                                coderWorkspaces.size,
+                            )
+                            try {
+                                updateSessionStatusWithRetry(session.id, "INACTIVE")
+                                logger.info("Successfully set session to inactive: sessionId={}", session.id)
+                                // Skip workspace starting since session is now inactive
+                                continue
+                            } catch (e: Exception) {
+                                logger.error("Failed to set session to inactive: sessionId={}", session.id, e)
+                                // Continue with workspace management even if status update fails
+                            }
+                        }
+
                         for (workspace in coderWorkspaces) {
                             // Only start workspace if it's in STOPPED or similar state
                             when (workspace.status.lowercase()) {
@@ -209,6 +289,15 @@ open class SessionMonitoringService(
      */
     private fun getActiveSessions(): List<SessionDto> {
         val url = "${properties.apiBaseUrl}/api/v1/sessions?status=ACTIVE"
+        val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
+        return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
+    }
+
+    /**
+     * Gets all inactive sessions from the API.
+     */
+    private fun getInactiveSessions(): List<SessionDto> {
+        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=INACTIVE"
         val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
         return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
