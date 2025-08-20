@@ -65,19 +65,24 @@ open class SessionApiClient(
      * Updates session status.
      */
     fun updateSessionStatus(sessionId: String, status: String) {
-        logger.info("Updating session status: sessionId={} status={}", sessionId, status)
+        logger.info("Updating session status via system API: sessionId={} status={}", sessionId, status)
 
-        val url = "${properties.apiBaseUrl}/api/v1/sessions/$sessionId/status"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/$sessionId/system-status"
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
         }
 
-        val updateRequest = UpdateSessionStatusRequest(status)
+        val updateRequest = mapOf("status" to status)
         val entity = HttpEntity(updateRequest, headers)
 
         try {
-            restTemplate.exchange(url, HttpMethod.PUT, entity, SessionDto::class.java)
-            logger.info("Successfully updated session status: sessionId={} status={}", sessionId, status)
+            val response = restTemplate.exchange(url, HttpMethod.PUT, entity, SessionDto::class.java)
+            logger.info(
+                "Successfully updated session status: sessionId={} status={} newStatus={}",
+                sessionId,
+                status,
+                response.body?.status,
+            )
         } catch (e: HttpClientErrorException) {
             logger.error(
                 "Client error updating session status: sessionId={} status={} httpStatus={} error={}",
