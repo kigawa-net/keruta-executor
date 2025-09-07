@@ -4,6 +4,7 @@ plugins {
     id("org.springframework.boot") version "3.2.0"
     id("io.spring.dependency-management") version "1.1.4"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
+    id("org.openapi.generator") version "7.1.0"
 }
 
 group = "net.kigawa.keruta"
@@ -29,6 +30,11 @@ dependencies {
 
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+
+    // HTTP Client (for generated OpenAPI client)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+    implementation("com.squareup.moshi:moshi-adapters:1.15.0")
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -61,4 +67,48 @@ repositories {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// OpenAPI Code Generation Configuration
+openApiGenerate {
+    generatorName.set("kotlin")
+    // 開発時はローカルファイル、CI時はAPIサーバーから取得
+    inputSpec.set(project.findProperty("inputSpec") as String? ?: "${project.rootDir}/src/main/resources/openapi.yaml")
+    outputDir.set("${layout.buildDirectory.get()}/generated-sources/openapi")
+    apiPackage.set("net.kigawa.keruta.executor.client.api")
+    modelPackage.set("net.kigawa.keruta.executor.client.model")
+    packageName.set("net.kigawa.keruta.executor.client")
+    configOptions.set(
+        mapOf(
+            "dateLibrary" to "java8",
+            "serializationLibrary" to "moshi",
+            "library" to "jvm-okhttp4",
+            "useCoroutines" to "true"
+        )
+    )
+}
+
+// Add generated sources to compilation
+sourceSets {
+    main {
+        kotlin {
+            srcDir("${layout.buildDirectory.get()}/generated-sources/openapi/src/main/kotlin")
+        }
+    }
+}
+
+// OpenAPI生成タスクをビルドから除外（CIでのみ実行）
+tasks.named("compileKotlin") {
+    // dependsOn("openApiGenerate") // GitHub Actionでのみ実行
+}
+
+// Ensure ktlint runs after code generation and exclude generated files
+tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask> {
+    // dependsOn("openApiGenerate")  // GitHub Actionでのみ実行
+    setSource(files("src"))
+}
+
+tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask> {
+    // dependsOn("openApiGenerate")  // GitHub Actionでのみ実行
+    setSource(files("src"))
 }
