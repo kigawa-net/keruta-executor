@@ -32,4 +32,9 @@ data class CoderProperties(
      * API token for authenticating with Coder server.
      */
     val token: String? = null,
+
+    /**
+     * Enable CLI fallback for token refresh.
+     */
+    val enableCliFallback: Boolean = false,
 )

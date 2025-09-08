@@ -115,6 +115,11 @@ open class CoderTemplateService(
      * Refreshes the authentication token using CLI.
      */
     private fun refreshAuthToken() {
+        if (!properties.coder.enableCliFallback) {
+            logger.warn("CLI fallback is disabled, skipping token refresh")
+            throw RuntimeException("CLI fallback is disabled and no valid token available")
+        }
+
         logger.info("Attempting to refresh Coder authentication token using CLI")
 
         try {
