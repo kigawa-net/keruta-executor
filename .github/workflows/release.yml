@@ -1,33 +1,39 @@
-
+name: release.yml
 on:
-  push:
+  workflow_call:
+    inputs:
+      name:
+        description: 'docker image name'
+        required: false
+        type: string
+      harborProject:
+        required: true
+        type: string
+      manifestFile:
+        required: true
+        type: string
+      repository:
+        required: true
+        type: string
+    secrets:
+      harborPass:
+        required: true
+      gitToken:
+        required: true
+
 
 jobs:
-#  test:
-#    uses: ./.github/workflows/test.yml
-  cd:
-#    needs: [test]
-    if: github.ref == 'refs/heads/main'
-    strategy:
-      matrix:
-        conf:
-          - name: keruta-executor
-            dockerFile: Dockerfile
-            manifestFile: ./keruta/keruta-executor.yaml
-            repository: kigawa-net/kigawa-net-k8s
-            harborProject: "library"
+  release:
     runs-on: ubuntu-latest
     env:
       harborUser: robot$kigawa-net
       dir: "./"
-      name: ${{ matrix.conf.name }}
-      dockerRepository: harbor.kigawa.net/${{ matrix.conf.harborProject }}
+      dockerFile: "./Dockerfile"
+      name: ${{ inputs.name || 'keruta-executor' }}
+      dockerRepository: harbor.kigawa.net/${{ inputs.harborProject }}
     steps:
       # checkout
       - uses: actions/checkout@v4
-      - name: preBuild
-        if: ${{ matrix.conf.preDockerBuildCmd }}
-        run: ${{ matrix.conf.preDockerBuildCmd }}
 
       # docker
       - name: Set up Docker Buildx
@@ -36,7 +42,7 @@ jobs:
         with:
           registry: harbor.kigawa.net
           username: ${{ env.harborUser }}
-          password: ${{ secrets.HARBOR_PASS }}
+          password: ${{ secrets.harborPass }}
 
       - name: Docker meta
         id: meta
@@ -54,26 +60,24 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: ${{ env.dir }}
-          file: ${{ matrix.conf.dockerFile }}
+          file: ${{ env.dockerFile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: ${{ env.dockerArg }}
-
 
       # argo
       - name: checkout manifest repository
         uses: actions/checkout@v3
         with:
-          repository: ${{ matrix.conf.repository }}
+          repository: ${{ inputs.repository }}
           ref: main
-          token: ${{ secrets.GIT_TOKEN }}
+          token: ${{ secrets.gitToken }}
 
       - name: Update YAML File
         run: |
-          yq -i '.spec.template.spec.containers[0].image = "harbor.kigawa.net/library/${{ matrix.conf.name }}:${{ github.ref_name }}-${{ github.sha }}"' \
-          ${{ matrix.conf.manifestFile }}
+          yq -i '.spec.template.spec.containers[0].image = "harbor.kigawa.net/library/${{ env.name }}:${{ github.ref_name }}-${{ github.sha }}"' \
+          ${{ inputs.manifestFile }}
 
       - name: push
         run: |
@@ -82,3 +86,4 @@ jobs:
           git add .
           git commit --author=. -m "update rev"
           git push
+
