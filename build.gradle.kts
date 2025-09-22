@@ -98,17 +98,31 @@ sourceSets {
 }
 
 // OpenAPI生成タスクをビルドから除外（CIでのみ実行）
-tasks.named("compileKotlin") {
-    dependsOn("openApiGenerate")
+// Dockerビルド時はOpenAPIタスクを無効化
+if (System.getenv("DOCKER_BUILD") == "true" || !File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+    tasks.named("openApiGenerate") {
+        enabled = false
+    }
+    tasks.named("compileKotlin") {
+        // OpenAPIタスクが無効の場合は依存関係を削除
+    }
+} else {
+    tasks.named("compileKotlin") {
+        dependsOn("openApiGenerate")
+    }
 }
 
 // Ensure ktlint runs after code generation and exclude generated files
 tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask> {
-    dependsOn("openApiGenerate")
+    if (System.getenv("DOCKER_BUILD") != "true" && File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+        dependsOn("openApiGenerate")
+    }
     setSource(files("src"))
 }
 
 tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask> {
-    dependsOn("openApiGenerate")
+    if (System.getenv("DOCKER_BUILD") != "true" && File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+        dependsOn("openApiGenerate")
+    }
     setSource(files("src"))
 }
