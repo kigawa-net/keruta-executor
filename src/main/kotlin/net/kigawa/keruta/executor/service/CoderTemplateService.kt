@@ -157,8 +157,6 @@ open class CoderTemplateService(
                 "create",
                 "--lifetime",
                 "24h",
-                "--scope",
-                "all",
             ).start()
 
             val tokenExitCode = tokenCreateProcess.waitFor()
