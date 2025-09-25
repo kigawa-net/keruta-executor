@@ -10,7 +10,8 @@ COPY settings.gradle.kts .
 COPY gradle.properties .
 
 COPY src src
-# Build the application with limited memory
+# Build the application with limited memory, disable OpenAPI generation
+ENV DOCKER_BUILD=true
 RUN GRADLE_OPTS="-Xmx1g" ./gradlew bootJar --no-daemon
 
 # Runtime stage

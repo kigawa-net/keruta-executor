@@ -73,8 +73,8 @@ tasks.withType<Test> {
 openApiGenerate {
     generatorName.set("kotlin")
     // 開発時はローカルファイル、CI時はAPIサーバーから取得
-    inputSpec.set(project.findProperty("inputSpec") as String? ?: "${project.rootDir}/src/main/resources/openapi.yaml")
-    outputDir.set("${layout.buildDirectory.get()}/generated-sources/openapi")
+    inputSpec.set(project.findProperty("inputSpec") as String? ?: "${projectDir}/../keruta-api/src/main/resources/openapi.yaml")
+    outputDir.set("${projectDir}/generated-api")
     apiPackage.set("net.kigawa.keruta.executor.client.api")
     modelPackage.set("net.kigawa.keruta.executor.client.model")
     packageName.set("net.kigawa.keruta.executor.client")
@@ -92,23 +92,37 @@ openApiGenerate {
 sourceSets {
     main {
         kotlin {
-            srcDir("${layout.buildDirectory.get()}/generated-sources/openapi/src/main/kotlin")
+            srcDir("${projectDir}/generated-api/src/main/kotlin")
         }
     }
 }
 
 // OpenAPI生成タスクをビルドから除外（CIでのみ実行）
-tasks.named("compileKotlin") {
-    // dependsOn("openApiGenerate") // GitHub Actionでのみ実行
+// Dockerビルド時はOpenAPIタスクを無効化
+if (System.getenv("DOCKER_BUILD") == "true" || !File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+    tasks.named("openApiGenerate") {
+        enabled = false
+    }
+    tasks.named("compileKotlin") {
+        // OpenAPIタスクが無効の場合は依存関係を削除
+    }
+} else {
+    tasks.named("compileKotlin") {
+        dependsOn("openApiGenerate")
+    }
 }
 
 // Ensure ktlint runs after code generation and exclude generated files
 tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask> {
-    // dependsOn("openApiGenerate")  // GitHub Actionでのみ実行
+    if (System.getenv("DOCKER_BUILD") != "true" && File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+        dependsOn("openApiGenerate")
+    }
     setSource(files("src"))
 }
 
 tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask> {
-    // dependsOn("openApiGenerate")  // GitHub Actionでのみ実行
+    if (System.getenv("DOCKER_BUILD") != "true" && File("${projectDir}/../keruta-api/src/main/resources/openapi.yaml").exists()) {
+        dependsOn("openApiGenerate")
+    }
     setSource(files("src"))
 }
