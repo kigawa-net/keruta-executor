@@ -119,7 +119,7 @@ open class SessionApiClient(
      * Updates session status with retry logic.
      */
     fun updateSessionStatusWithRetry(sessionId: String, status: String) {
-        val operationKey = "updateSessionStatus_${sessionId}"
+        val operationKey = "updateSessionStatus_$sessionId"
         try {
             circuitBreakerService.executeWithRetry(operationKey, 3) {
                 updateSessionStatus(sessionId, status)
@@ -129,7 +129,7 @@ open class SessionApiClient(
                 "Failed to update session status after retries: sessionId={} status={} error={}",
                 sessionId,
                 status,
-                e.message
+                e.message,
             )
             throw e
         }
@@ -326,14 +326,14 @@ open class SessionApiClient(
                 url,
                 HttpMethod.POST,
                 entity,
-                object : ParameterizedTypeReference<Map<String, Any>>() {}
+                object : ParameterizedTypeReference<Map<String, Any>>() {},
             )
 
             val syncResult = response.body
             logger.info(
                 "Successfully synced session with workspaces: sessionId={} result={}",
                 sessionId,
-                syncResult?.get("message") ?: "synced"
+                syncResult?.get("message") ?: "synced",
             )
             syncResult
         } catch (e: HttpClientErrorException) {
@@ -369,7 +369,7 @@ open class SessionApiClient(
      * Synchronizes session status with workspace state using retry logic.
      */
     fun syncSessionWithWorkspacesWithRetry(sessionId: String): Map<String, Any>? {
-        val operationKey = "syncSessionWithWorkspaces_${sessionId}"
+        val operationKey = "syncSessionWithWorkspaces_$sessionId"
         return try {
             circuitBreakerService.executeWithRetry(operationKey, 2) {
                 syncSessionWithWorkspaces(sessionId)
@@ -378,7 +378,7 @@ open class SessionApiClient(
             logger.error(
                 "Failed to sync session with workspaces after retries: sessionId={} error={}",
                 sessionId,
-                e.message
+                e.message,
             )
             throw e
         }

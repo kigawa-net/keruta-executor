@@ -115,10 +115,12 @@ open class SessionMonitoringService(
                     if (coderWorkspaces.isNotEmpty()) {
                         // Categorize workspace states
                         val runningWorkspaces = coderWorkspaces.filter {
-                            workspace -> workspace.status.lowercase() in listOf("running", "starting")
+                                workspace ->
+                            workspace.status.lowercase() in listOf("running", "starting")
                         }
                         val stoppedWorkspaces = coderWorkspaces.filter {
-                            workspace -> workspace.status.lowercase() in listOf("stopped", "pending", "failed")
+                                workspace ->
+                            workspace.status.lowercase() in listOf("stopped", "pending", "failed")
                         }
 
                         logger.debug(
@@ -126,7 +128,7 @@ open class SessionMonitoringService(
                             session.id,
                             coderWorkspaces.size,
                             runningWorkspaces.size,
-                            stoppedWorkspaces.size
+                            stoppedWorkspaces.size,
                         )
 
                         // If any workspace is running or starting, reactivate the session
@@ -146,7 +148,7 @@ open class SessionMonitoringService(
                             logger.debug(
                                 "Inactive session has only stopped workspaces, leaving session inactive: sessionId={} stoppedWorkspaces={}",
                                 session.id,
-                                stoppedWorkspaces.size
+                                stoppedWorkspaces.size,
                             )
                         }
                     } else {
@@ -203,10 +205,12 @@ open class SessionMonitoringService(
                     } else {
                         // Categorize workspace states
                         val runningWorkspaces = coderWorkspaces.filter {
-                            workspace -> workspace.status.lowercase() in listOf("running", "starting")
+                                workspace ->
+                            workspace.status.lowercase() in listOf("running", "starting")
                         }
                         val stoppedWorkspaces = coderWorkspaces.filter {
-                            workspace -> workspace.status.lowercase() in listOf("stopped", "pending", "failed")
+                                workspace ->
+                            workspace.status.lowercase() in listOf("stopped", "pending", "failed")
                         }
 
                         logger.debug(
@@ -214,7 +218,7 @@ open class SessionMonitoringService(
                             session.id,
                             coderWorkspaces.size,
                             runningWorkspaces.size,
-                            stoppedWorkspaces.size
+                            stoppedWorkspaces.size,
                         )
 
                         // If all workspaces are stopped, set session to inactive
@@ -240,7 +244,7 @@ open class SessionMonitoringService(
                             logger.debug(
                                 "Session has running workspaces, keeping session active: sessionId={} runningWorkspaces={}",
                                 session.id,
-                                runningWorkspaces.size
+                                runningWorkspaces.size,
                             )
                         }
 
@@ -251,7 +255,7 @@ open class SessionMonitoringService(
                                 "Session has mixed workspace states, starting stopped workspaces: sessionId={} running={} stopped={}",
                                 session.id,
                                 runningWorkspaces.size,
-                                stoppedWorkspaces.size
+                                stoppedWorkspaces.size,
                             )
 
                             for (workspace in stoppedWorkspaces) {

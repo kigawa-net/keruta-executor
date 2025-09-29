@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Log Streaming Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .controls {
+            flex: 1;
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .logs {
+            flex: 2;
+            background: #1e1e1e;
+            color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            padding-left: 10px;
+        }
+        .log-entry.error {
+            border-left-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+        }
+        .log-entry.warn {
+            border-left-color: #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        .log-entry.info {
+            border-left-color: #007bff;
+            background: rgba(0, 123, 255, 0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Log Streaming Test</h1>
+
+    <div class="container">
+        <div class="controls">
+            <h3>接続設定</h3>
+
+            <div class="form-group">
+                <label for="streamType">ストリームタイプ:</label>
+                <select id="streamType" onchange="toggleInputs()">
+                    <option value="workspace">Workspace</option>
+                    <option value="task">Task</option>
+                    <option value="command">Command</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="workspaceGroup">
+                <label for="workspaceId">Workspace ID:</label>
+                <input type="text" id="workspaceId" value="workspace-123" placeholder="workspace-123">
+            </div>
+
+            <div class="form-group" id="taskGroup" style="display: none;">
+                <label for="taskId">Task ID:</label>
+                <input type="text" id="taskId" value="task-456" placeholder="task-456">
+            </div>
+
+            <div class="form-group" id="commandGroup" style="display: none;">
+                <label for="command">Command:</label>
+                <input type="text" id="command" value="echo hello world" placeholder="echo hello world">
+                <label for="workingDirectory">Working Directory:</label>
+                <input type="text" id="workingDirectory" value="/tmp" placeholder="/tmp">
+            </div>
+
+            <button onclick="connect()" id="connectBtn">接続</button>
+            <button onclick="disconnect()" id="disconnectBtn" disabled>切断</button>
+
+            <div class="status disconnected" id="status">切断中</div>
+
+            <h3>ストリーム制御</h3>
+            <button onclick="pauseStream()" id="pauseBtn" disabled>一時停止</button>
+            <button onclick="resumeStream()" id="resumeBtn" disabled>再開</button>
+            <button onclick="stopStream()" id="stopBtn" disabled>停止</button>
+
+            <h3>ログ制御</h3>
+            <button onclick="clearLogs()">ログクリア</button>
+        </div>
+
+        <div class="logs" id="logsContainer">
+            <div>ログがここに表示されます...</div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let isConnected = false;
+
+        function toggleInputs() {
+            const streamType = document.getElementById('streamType').value;
+            const workspaceGroup = document.getElementById('workspaceGroup');
+            const taskGroup = document.getElementById('taskGroup');
+            const commandGroup = document.getElementById('commandGroup');
+
+            // Hide all groups
+            workspaceGroup.style.display = 'none';
+            taskGroup.style.display = 'none';
+            commandGroup.style.display = 'none';
+
+            // Show relevant group
+            if (streamType === 'workspace') {
+                workspaceGroup.style.display = 'block';
+            } else if (streamType === 'task') {
+                taskGroup.style.display = 'block';
+            } else if (streamType === 'command') {
+                commandGroup.style.display = 'block';
+            }
+        }
+
+        function connect() {
+            if (isConnected) return;
+
+            const streamType = document.getElementById('streamType').value;
+            let wsUrl = 'ws://localhost:8081/api/v1/logs/ws';
+
+            // Build query parameters based on stream type
+            const params = new URLSearchParams();
+            if (streamType === 'workspace') {
+                params.set('workspaceId', document.getElementById('workspaceId').value);
+            } else if (streamType === 'task') {
+                params.set('taskId', document.getElementById('taskId').value);
+            } else if (streamType === 'command') {
+                params.set('command', document.getElementById('command').value);
+                const workingDir = document.getElementById('workingDirectory').value;
+                if (workingDir) {
+                    params.set('workingDirectory', workingDir);
+                }
+            }
+
+            wsUrl += '?' + params.toString();
+
+            updateStatus('connecting', '接続中...');
+
+            try {
+                websocket = new WebSocket(wsUrl);
+
+                websocket.onopen = function(event) {
+                    isConnected = true;
+                    updateStatus('connected', '接続済み');
+                    updateButtons(true);
+                    addLogEntry('info', 'WebSocket接続が確立されました');
+                };
+
+                websocket.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleMessage(message);
+                    } catch (e) {
+                        addLogEntry('error', 'メッセージの解析に失敗: ' + event.data);
+                    }
+                };
+
+                websocket.onclose = function(event) {
+                    isConnected = false;
+                    updateStatus('disconnected', '切断済み');
+                    updateButtons(false);
+                    addLogEntry('info', 'WebSocket接続が閉じられました (code: ' + event.code + ')');
+                };
+
+                websocket.onerror = function(event) {
+                    addLogEntry('error', 'WebSocketエラーが発生しました');
+                    updateStatus('disconnected', 'エラー');
+                };
+
+            } catch (e) {
+                addLogEntry('error', '接続に失敗: ' + e.message);
+                updateStatus('disconnected', '接続失敗');
+            }
+        }
+
+        function disconnect() {
+            if (websocket && isConnected) {
+                websocket.close();
+            }
+        }
+
+        function pauseStream() {
+            if (websocket && isConnected) {
+                const message = { action: 'pause' };
+                websocket.send(JSON.stringify(message));
+                addLogEntry('info', 'ストリーム一時停止リクエストを送信');
+            }
+        }
+
+        function resumeStream() {
+            if (websocket && isConnected) {
+                const message = { action: 'resume' };
+                websocket.send(JSON.stringify(message));
+                addLogEntry('info', 'ストリーム再開リクエストを送信');
+            }
+        }
+
+        function stopStream() {
+            if (websocket && isConnected) {
+                const message = { action: 'stop' };
+                websocket.send(JSON.stringify(message));
+                addLogEntry('info', 'ストリーム停止リクエストを送信');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logsContainer').innerHTML = '';
+        }
+
+        function handleMessage(message) {
+            if (message.type === 'log' && message.data) {
+                const logData = message.data;
+                const timestamp = new Date(logData.timestamp).toLocaleTimeString();
+                const logText = `[${timestamp}] [${logData.level}] ${logData.message}`;
+                addLogEntry(logData.level.toLowerCase(), logText);
+            } else if (message.type === 'error') {
+                addLogEntry('error', 'エラー: ' + message.data.message);
+            } else if (message.type === 'complete') {
+                addLogEntry('info', 'ストリーム完了');
+            }
+        }
+
+        function addLogEntry(level, text) {
+            const logsContainer = document.getElementById('logsContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${level}`;
+            logEntry.textContent = text;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function updateStatus(type, text) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = text;
+        }
+
+        function updateButtons(connected) {
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+            document.getElementById('pauseBtn').disabled = !connected;
+            document.getElementById('resumeBtn').disabled = !connected;
+            document.getElementById('stopBtn').disabled = !connected;
+        }
+
+        // Initialize
+        toggleInputs();
+    </script>
+</body>
+</html>
