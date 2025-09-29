@@ -119,8 +119,19 @@ open class SessionApiClient(
      * Updates session status with retry logic.
      */
     fun updateSessionStatusWithRetry(sessionId: String, status: String) {
-        circuitBreakerService.executeWithRetry("updateSessionStatus", 3) {
-            updateSessionStatus(sessionId, status)
+        val operationKey = "updateSessionStatus_${sessionId}"
+        try {
+            circuitBreakerService.executeWithRetry(operationKey, 3) {
+                updateSessionStatus(sessionId, status)
+            }
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to update session status after retries: sessionId={} status={} error={}",
+                sessionId,
+                status,
+                e.message
+            )
+            throw e
         }
     }
 
@@ -293,6 +304,83 @@ open class SessionApiClient(
     fun createWorkspaceForSessionWithRetry(session: SessionDto) {
         circuitBreakerService.executeWithRetry("createWorkspaceForSession", 2) {
             createWorkspaceForSession(session)
+        }
+    }
+
+    /**
+     * Synchronizes session status with workspace state.
+     * This is a more intelligent sync that checks workspace state and updates session accordingly.
+     */
+    fun syncSessionWithWorkspaces(sessionId: String): Map<String, Any>? {
+        logger.info("Syncing session with workspaces: sessionId={}", sessionId)
+
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/$sessionId/sync-status"
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+        }
+
+        val entity = HttpEntity<Any>(headers)
+
+        return try {
+            val response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                entity,
+                object : ParameterizedTypeReference<Map<String, Any>>() {}
+            )
+
+            val syncResult = response.body
+            logger.info(
+                "Successfully synced session with workspaces: sessionId={} result={}",
+                sessionId,
+                syncResult?.get("message") ?: "synced"
+            )
+            syncResult
+        } catch (e: HttpClientErrorException) {
+            logger.error(
+                "Client error syncing session: sessionId={} httpStatus={} error={}",
+                sessionId,
+                e.statusCode.value(),
+                e.message,
+            )
+            throw e
+        } catch (e: HttpServerErrorException) {
+            logger.error(
+                "Server error syncing session: sessionId={} httpStatus={} error={}",
+                sessionId,
+                e.statusCode.value(),
+                e.message,
+            )
+            throw e
+        } catch (e: ResourceAccessException) {
+            logger.error(
+                "Network error syncing session: sessionId={} error={}",
+                sessionId,
+                e.message,
+            )
+            throw e
+        } catch (e: Exception) {
+            logger.error("Unexpected error syncing session: sessionId={}", sessionId, e)
+            throw e
+        }
+    }
+
+    /**
+     * Synchronizes session status with workspace state using retry logic.
+     */
+    fun syncSessionWithWorkspacesWithRetry(sessionId: String): Map<String, Any>? {
+        val operationKey = "syncSessionWithWorkspaces_${sessionId}"
+        return try {
+            circuitBreakerService.executeWithRetry(operationKey, 2) {
+                syncSessionWithWorkspaces(sessionId)
+            }
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to sync session with workspaces after retries: sessionId={} error={}",
+                sessionId,
+                e.message
+            )
+            throw e
         }
     }
 }

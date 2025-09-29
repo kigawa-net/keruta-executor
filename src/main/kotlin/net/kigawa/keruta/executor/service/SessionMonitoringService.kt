@@ -95,8 +95,12 @@ open class SessionMonitoringService(
             // Get all INACTIVE sessions
             val inactiveSessions = sessionApiClient.getInactiveSessions()
 
+            if (inactiveSessions.isNotEmpty()) {
+                logger.debug("Found {} inactive sessions to check", inactiveSessions.size)
+            }
+
             for (session in inactiveSessions) {
-                logger.debug("Checking inactive session: sessionId={}", session.id)
+                logger.debug("Checking inactive session: sessionId={} name={}", session.id, session.name)
 
                 try {
                     // Check circuit breaker
@@ -109,16 +113,28 @@ open class SessionMonitoringService(
                     val coderWorkspaces = coderWorkspaceService.getWorkspacesBySessionId(session.id)
 
                     if (coderWorkspaces.isNotEmpty()) {
-                        // Check if any workspace is running or starting
-                        val hasRunningWorkspace = coderWorkspaces.any { workspace ->
-                            workspace.status.lowercase() in listOf("running", "starting")
+                        // Categorize workspace states
+                        val runningWorkspaces = coderWorkspaces.filter {
+                            workspace -> workspace.status.lowercase() in listOf("running", "starting")
+                        }
+                        val stoppedWorkspaces = coderWorkspaces.filter {
+                            workspace -> workspace.status.lowercase() in listOf("stopped", "pending", "failed")
                         }
 
-                        if (hasRunningWorkspace) {
+                        logger.debug(
+                            "Inactive session workspace summary: sessionId={} total={} running={} stopped={}",
+                            session.id,
+                            coderWorkspaces.size,
+                            runningWorkspaces.size,
+                            stoppedWorkspaces.size
+                        )
+
+                        // If any workspace is running or starting, reactivate the session
+                        if (runningWorkspaces.isNotEmpty()) {
                             logger.info(
-                                "Found running workspace for inactive session, reactivating: sessionId={} workspaceCount={}",
+                                "Found running workspaces for inactive session, reactivating: sessionId={} runningWorkspaces={}",
                                 session.id,
-                                coderWorkspaces.size,
+                                runningWorkspaces.size,
                             )
                             try {
                                 sessionApiClient.updateSessionStatusWithRetry(session.id, "ACTIVE")
@@ -126,7 +142,15 @@ open class SessionMonitoringService(
                             } catch (e: Exception) {
                                 logger.error("Failed to reactivate session: sessionId={}", session.id, e)
                             }
+                        } else if (stoppedWorkspaces.isNotEmpty()) {
+                            logger.debug(
+                                "Inactive session has only stopped workspaces, leaving session inactive: sessionId={} stoppedWorkspaces={}",
+                                session.id,
+                                stoppedWorkspaces.size
+                            )
                         }
+                    } else {
+                        logger.debug("Inactive session has no workspaces: sessionId={}", session.id)
                     }
 
                     // Record success
@@ -177,21 +201,33 @@ open class SessionMonitoringService(
                             logger.error("Failed to create workspace for active session: sessionId={}", session.id, e)
                         }
                     } else {
-                        // Check if all workspaces are stopped and set session to inactive
-                        val allWorkspacesStopped = coderWorkspaces.all { workspace ->
-                            workspace.status.lowercase() in listOf("stopped", "pending", "failed")
+                        // Categorize workspace states
+                        val runningWorkspaces = coderWorkspaces.filter {
+                            workspace -> workspace.status.lowercase() in listOf("running", "starting")
+                        }
+                        val stoppedWorkspaces = coderWorkspaces.filter {
+                            workspace -> workspace.status.lowercase() in listOf("stopped", "pending", "failed")
                         }
 
-                        if (allWorkspacesStopped) {
+                        logger.debug(
+                            "Session workspace status summary: sessionId={} total={} running={} stopped={}",
+                            session.id,
+                            coderWorkspaces.size,
+                            runningWorkspaces.size,
+                            stoppedWorkspaces.size
+                        )
+
+                        // If all workspaces are stopped, set session to inactive
+                        if (runningWorkspaces.isEmpty() && stoppedWorkspaces.isNotEmpty()) {
                             logger.info(
-                                "All workspaces are stopped for active session, setting session to inactive: sessionId={} workspaceCount={}",
+                                "All workspaces are stopped for active session, setting session to inactive: sessionId={} stoppedWorkspaces={}",
                                 session.id,
-                                coderWorkspaces.size,
+                                stoppedWorkspaces.size,
                             )
                             try {
                                 sessionApiClient.updateSessionStatusWithRetry(session.id, "INACTIVE")
                                 logger.info("Successfully set session to inactive: sessionId={}", session.id)
-                                // Skip workspace starting since session is now inactive
+                                // Session is now inactive, so we don't start workspaces
                                 continue
                             } catch (e: Exception) {
                                 logger.error("Failed to set session to inactive: sessionId={}", session.id, e)
@@ -199,41 +235,40 @@ open class SessionMonitoringService(
                             }
                         }
 
-                        for (workspace in coderWorkspaces) {
-                            // Only start workspace if it's in STOPPED or similar state
-                            when (workspace.status.lowercase()) {
-                                "stopped", "pending", "failed" -> {
-                                    logger.info(
-                                        "Starting Coder workspace: sessionId={} workspaceId={} status={}",
+                        // If we have running workspaces, ensure they stay healthy
+                        if (runningWorkspaces.isNotEmpty()) {
+                            logger.debug(
+                                "Session has running workspaces, keeping session active: sessionId={} runningWorkspaces={}",
+                                session.id,
+                                runningWorkspaces.size
+                            )
+                        }
+
+                        // For stopped workspaces, try to restart them only if the session is still active
+                        // This prevents race conditions where we set session to inactive but then immediately start workspaces
+                        if (stoppedWorkspaces.isNotEmpty() && runningWorkspaces.isNotEmpty()) {
+                            logger.info(
+                                "Session has mixed workspace states, starting stopped workspaces: sessionId={} running={} stopped={}",
+                                session.id,
+                                runningWorkspaces.size,
+                                stoppedWorkspaces.size
+                            )
+
+                            for (workspace in stoppedWorkspaces) {
+                                logger.info(
+                                    "Starting stopped Coder workspace: sessionId={} workspaceId={} status={}",
+                                    session.id,
+                                    workspace.id,
+                                    workspace.status,
+                                )
+                                try {
+                                    coderWorkspaceService.startWorkspace(workspace.id)
+                                } catch (e: Exception) {
+                                    logger.error(
+                                        "Failed to start Coder workspace: sessionId={} workspaceId={}",
                                         session.id,
                                         workspace.id,
-                                        workspace.status,
-                                    )
-                                    try {
-                                        coderWorkspaceService.startWorkspace(workspace.id)
-                                    } catch (e: Exception) {
-                                        logger.error(
-                                            "Failed to start Coder workspace: sessionId={} workspaceId={}",
-                                            session.id,
-                                            workspace.id,
-                                            e,
-                                        )
-                                    }
-                                }
-                                "starting", "running" -> {
-                                    logger.debug(
-                                        "Workspace running/starting: sessionId={} workspaceId={} status={}",
-                                        session.id,
-                                        workspace.id,
-                                        workspace.status,
-                                    )
-                                }
-                                else -> {
-                                    logger.debug(
-                                        "Workspace non-startable: sessionId={} workspaceId={} status={}",
-                                        session.id,
-                                        workspace.id,
-                                        workspace.status,
+                                        e,
                                     )
                                 }
                             }

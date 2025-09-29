@@ -23,6 +23,9 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param name Session name
+ * @param description Session description
+ * @param repositoryUrl Git repository URL
+ * @param repositoryRef Git repository reference (branch, tag, or commit)
  * @param tags Initial tags for the session
  */
 
@@ -32,6 +35,18 @@ data class SessionCreateRequest (
     /* Session name */
     @Json(name = "name")
     val name: kotlin.String,
+
+    /* Session description */
+    @Json(name = "description")
+    val description: kotlin.String? = null,
+
+    /* Git repository URL */
+    @Json(name = "repositoryUrl")
+    val repositoryUrl: kotlin.String? = null,
+
+    /* Git repository reference (branch, tag, or commit) */
+    @Json(name = "repositoryRef")
+    val repositoryRef: kotlin.String? = "main",
 
     /* Initial tags for the session */
     @Json(name = "tags")
