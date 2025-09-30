@@ -22,7 +22,7 @@ data class WorkspaceEvent(
     val workspaceName: String? = null,
     val templateId: String? = null,
     val reason: String? = null,
-    val userId: String? = null
+    val userId: String? = null,
 )
 
 interface EventPublisherService {
@@ -33,7 +33,7 @@ interface EventPublisherService {
 @Service
 class KafkaEventPublisherService(
     private val kafkaTemplate: KafkaTemplate<String, String>,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
 ) : EventPublisherService {
 
     companion object {
@@ -83,7 +83,7 @@ class KafkaEventPublisherService(
         workspaceName: String,
         sessionId: String,
         templateId: String? = null,
-        userId: String? = null
+        userId: String? = null,
     ): WorkspaceEvent {
         return WorkspaceEvent(
             eventType = "workspaceCreated",
@@ -91,20 +91,16 @@ class KafkaEventPublisherService(
             workspaceName = workspaceName,
             sessionId = sessionId,
             templateId = templateId,
-            userId = userId
+            userId = userId,
         )
     }
 
-    fun createWorkspaceStartedEvent(
-        workspaceId: String,
-        sessionId: String,
-        userId: String? = null
-    ): WorkspaceEvent {
+    fun createWorkspaceStartedEvent(workspaceId: String, sessionId: String, userId: String? = null): WorkspaceEvent {
         return WorkspaceEvent(
             eventType = "workspaceStarted",
             workspaceId = workspaceId,
             sessionId = sessionId,
-            userId = userId
+            userId = userId,
         )
     }
 
@@ -112,27 +108,23 @@ class KafkaEventPublisherService(
         workspaceId: String,
         sessionId: String,
         reason: String? = null,
-        userId: String? = null
+        userId: String? = null,
     ): WorkspaceEvent {
         return WorkspaceEvent(
             eventType = "workspaceStopped",
             workspaceId = workspaceId,
             sessionId = sessionId,
             reason = reason,
-            userId = userId
+            userId = userId,
         )
     }
 
-    fun createWorkspaceDeletedEvent(
-        workspaceId: String,
-        sessionId: String,
-        userId: String? = null
-    ): WorkspaceEvent {
+    fun createWorkspaceDeletedEvent(workspaceId: String, sessionId: String, userId: String? = null): WorkspaceEvent {
         return WorkspaceEvent(
             eventType = "workspaceDeleted",
             workspaceId = workspaceId,
             sessionId = sessionId,
-            userId = userId
+            userId = userId,
         )
     }
 }

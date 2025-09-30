@@ -21,20 +21,20 @@ interface EventConsumerService {
 @Service
 class KafkaEventConsumerService(
     private val objectMapper: ObjectMapper,
-    private val sessionMonitoringService: SessionMonitoringService
+    private val sessionMonitoringService: SessionMonitoringService,
 ) : EventConsumerService {
 
     @KafkaListener(
         topics = ["keruta.sessions"],
         groupId = "keruta-executor-session-consumer",
-        containerFactory = "kafkaListenerContainerFactory"
+        containerFactory = "kafkaListenerContainerFactory",
     )
     fun consumeSessionEvents(
         @Payload message: String,
         @Header(KafkaHeaders.RECEIVED_TOPIC) topic: String,
         @Header(KafkaHeaders.RECEIVED_PARTITION) partition: Int,
         @Header(KafkaHeaders.OFFSET) offset: Long,
-        acknowledgment: Acknowledgment
+        acknowledgment: Acknowledgment,
     ) {
         try {
             logger.debug { "Received session event from topic '$topic' [partition: $partition, offset: $offset]: $message" }
@@ -52,14 +52,14 @@ class KafkaEventConsumerService(
     @KafkaListener(
         topics = ["keruta.workspaces"],
         groupId = "keruta-executor-workspace-consumer",
-        containerFactory = "kafkaListenerContainerFactory"
+        containerFactory = "kafkaListenerContainerFactory",
     )
     fun consumeWorkspaceEvents(
         @Payload message: String,
         @Header(KafkaHeaders.RECEIVED_TOPIC) topic: String,
         @Header(KafkaHeaders.RECEIVED_PARTITION) partition: Int,
         @Header(KafkaHeaders.OFFSET) offset: Long,
-        acknowledgment: Acknowledgment
+        acknowledgment: Acknowledgment,
     ) {
         try {
             logger.debug { "Received workspace event from topic '$topic' [partition: $partition, offset: $offset]: $message" }
@@ -77,14 +77,14 @@ class KafkaEventConsumerService(
     @KafkaListener(
         topics = ["keruta.tasks"],
         groupId = "keruta-executor-task-consumer",
-        containerFactory = "kafkaListenerContainerFactory"
+        containerFactory = "kafkaListenerContainerFactory",
     )
     fun consumeTaskEvents(
         @Payload message: String,
         @Header(KafkaHeaders.RECEIVED_TOPIC) topic: String,
         @Header(KafkaHeaders.RECEIVED_PARTITION) partition: Int,
         @Header(KafkaHeaders.OFFSET) offset: Long,
-        acknowledgment: Acknowledgment
+        acknowledgment: Acknowledgment,
     ) {
         try {
             logger.debug { "Received task event from topic '$topic' [partition: $partition, offset: $offset]: $message" }
@@ -110,14 +110,14 @@ class KafkaEventConsumerService(
                 logger.info { "Session status changed: sessionId=$sessionId, status=$previousStatus -> $newStatus" }
 
                 if (newStatus == "ACTIVE") {
-                    sessionId?.let { sessionMonitoringService.triggerSessionWorkspaceCheck(it) }
+                    logger.info { "Session activated: sessionId=$sessionId. Workspace monitoring will handle this in the next cycle." }
                 }
             }
             "sessionCreated" -> {
                 val sessionName = eventJson.get("sessionName")?.asText()
                 logger.info { "Session created: sessionId=$sessionId, name=$sessionName" }
 
-                sessionId?.let { sessionMonitoringService.triggerSessionWorkspaceCheck(it) }
+                logger.info { "Session created: sessionId=$sessionId. Workspace monitoring will handle this in the next cycle." }
             }
             "sessionDeleted" -> {
                 logger.info { "Session deleted: sessionId=$sessionId" }

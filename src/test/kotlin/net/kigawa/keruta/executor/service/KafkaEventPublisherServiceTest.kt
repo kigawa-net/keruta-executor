@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
@@ -16,13 +17,13 @@ class KafkaEventPublisherServiceTest {
     private val kafkaEventPublisherService = KafkaEventPublisherService(kafkaTemplate, objectMapper)
 
     @Test
-    fun `publishWorkspaceEvent should send event to workspace topic`() {
+    fun `publishWorkspaceEvent should send event to workspace topic`() = runTest {
         // Given
         val event = WorkspaceEvent(
             eventType = "workspaceCreated",
             workspaceId = "ws-123",
             sessionId = "session-123",
-            workspaceName = "test-workspace"
+            workspaceName = "test-workspace",
         )
         val eventJson = """{"eventType":"workspaceCreated","workspaceId":"ws-123"}"""
         val future = CompletableFuture<SendResult<String, String>>()
@@ -44,7 +45,7 @@ class KafkaEventPublisherServiceTest {
             workspaceId = "ws-123",
             workspaceName = "test-workspace",
             sessionId = "session-123",
-            templateId = "template-123"
+            templateId = "template-123",
         )
 
         // Then
@@ -61,7 +62,7 @@ class KafkaEventPublisherServiceTest {
         // When
         val event = kafkaEventPublisherService.createWorkspaceStartedEvent(
             workspaceId = "ws-123",
-            sessionId = "session-123"
+            sessionId = "session-123",
         )
 
         // Then
@@ -77,7 +78,7 @@ class KafkaEventPublisherServiceTest {
         val event = kafkaEventPublisherService.createWorkspaceStoppedEvent(
             workspaceId = "ws-123",
             sessionId = "session-123",
-            reason = "user requested"
+            reason = "user requested",
         )
 
         // Then
@@ -93,7 +94,7 @@ class KafkaEventPublisherServiceTest {
         // When
         val event = kafkaEventPublisherService.createWorkspaceDeletedEvent(
             workspaceId = "ws-123",
-            sessionId = "session-123"
+            sessionId = "session-123",
         )
 
         // Then
