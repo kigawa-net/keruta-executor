@@ -11,7 +11,7 @@ import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.TextWebSocketHandler
 
 @Component
-open class ExecutorWebSocketHandler(
+class ExecutorWebSocketHandler(
     private val coderWorkspaceService: CoderWorkspaceService,
     private val objectMapper: ObjectMapper,
 ) : TextWebSocketHandler() {
@@ -44,7 +44,7 @@ open class ExecutorWebSocketHandler(
         }
     }
 
-    private fun handleRequest(request: WebSocketRequest): WebSocketMessage {
+    private fun handleRequest(request: WebSocketRequest): Any {
         return try {
             when (request.method to request.path) {
                 "GET" to "/workspaces" -> {
