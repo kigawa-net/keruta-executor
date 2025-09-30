@@ -3,3 +3,6 @@
 /error.log
 /keruta-executor/.gradle/
 /hs_err_pid*.log
+
+# Generated OpenAPI client
+/build/generated-sources/

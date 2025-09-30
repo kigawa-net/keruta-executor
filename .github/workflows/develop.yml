@@ -1,0 +1,16 @@
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  cd:
+    uses: ./.github/workflows/release.yml
+    with:
+        manifestFile: ./keruta/dev/keruta-executor.yaml
+        harborProject: "library"
+        repository: "kigawa-net/kigawa-net-k8s"
+
+    secrets:
+      harborPass: ${{ secrets.HARBOR_PASS }}
+      gitToken: ${{ secrets.GIT_TOKEN }}

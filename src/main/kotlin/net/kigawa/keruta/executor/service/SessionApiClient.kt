@@ -29,7 +29,7 @@ open class SessionApiClient(
      * Gets all pending sessions from the API.
      */
     fun getPendingSessions(): List<SessionDto> {
-        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=PENDING"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/status/PENDING"
         val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
         return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
@@ -38,7 +38,7 @@ open class SessionApiClient(
      * Gets all active sessions from the API.
      */
     fun getActiveSessions(): List<SessionDto> {
-        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=ACTIVE"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/status/ACTIVE"
         val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
         return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
@@ -47,7 +47,7 @@ open class SessionApiClient(
      * Gets all inactive sessions from the API.
      */
     fun getInactiveSessions(): List<SessionDto> {
-        val url = "${properties.apiBaseUrl}/api/v1/sessions?status=INACTIVE"
+        val url = "${properties.apiBaseUrl}/api/v1/sessions/status/INACTIVE"
         val typeReference = object : ParameterizedTypeReference<List<SessionDto>>() {}
         return restTemplate.exchange(url, HttpMethod.GET, null, typeReference).body ?: emptyList()
     }
