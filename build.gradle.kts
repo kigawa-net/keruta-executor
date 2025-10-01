@@ -5,6 +5,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.4"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
     id("org.openapi.generator") version "7.1.0"
+    id("kinfra-root")
 }
 
 group = "net.kigawa.keruta"
