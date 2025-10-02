@@ -1,4 +1,4 @@
 package net.kigawa.keruta.executor.domain
 
-interface CoroutineJob {
+interface ApiAuthResponse {
 }

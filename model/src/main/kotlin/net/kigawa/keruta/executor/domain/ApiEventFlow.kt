@@ -2,6 +2,6 @@ package net.kigawa.keruta.executor.domain
 
 import net.kigawa.keruta.executor.domain.receive.ApiPacket
 
-interface ApiReader {
-    suspend fun read(): ApiPacket?
+interface ApiEventFlow {
+    fun subscribe(block: suspend (ApiPacket) -> Unit)
 }
