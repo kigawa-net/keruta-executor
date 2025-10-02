@@ -6,3 +6,4 @@
 
 # Generated OpenAPI client
 /build/generated-sources/
+/buildSrc/.kotlin/errors/errors-1759446185893.log
