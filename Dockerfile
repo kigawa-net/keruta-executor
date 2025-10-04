@@ -8,6 +8,7 @@ COPY gradle gradle
 COPY build.gradle.kts .
 COPY settings.gradle.kts .
 COPY gradle.properties .
+COPY buildSrc buildSrc
 
 COPY src src
 COPY model model
