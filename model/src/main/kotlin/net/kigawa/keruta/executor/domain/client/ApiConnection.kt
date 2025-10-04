@@ -1,4 +1,4 @@
-package net.kigawa.keruta.executor.domain
+package net.kigawa.keruta.executor.domain.client
 
 interface ApiConnection {
     fun useReader(): ApiReader

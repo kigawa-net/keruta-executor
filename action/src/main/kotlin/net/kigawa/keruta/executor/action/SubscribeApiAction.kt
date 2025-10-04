@@ -1,6 +1,6 @@
 package net.kigawa.keruta.executor.action
 
-import net.kigawa.keruta.executor.domain.ApiReader
+import net.kigawa.keruta.executor.domain.client.ApiReader
 
 interface SubscribeApiAction {
     val apiPacketReceiveAction: ApiPacketReceiveAction

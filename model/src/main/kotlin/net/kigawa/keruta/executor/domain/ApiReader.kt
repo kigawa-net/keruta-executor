@@ -1,7 +1,0 @@
-package net.kigawa.keruta.executor.domain
-
-import net.kigawa.keruta.executor.domain.receive.ApiPacket
-
-interface ApiReader {
-    suspend fun read(): ApiPacket?
-}
